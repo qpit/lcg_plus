@@ -2,16 +2,17 @@ import strawberryfields as sf
 import numpy as np
 from scipy.special import comb
 from strawberryfields.backends.bosonicbackend import ops
-from strawberryfields.backends.bosonicbackend.bosoniccircuit import BosonicModes
-from bosonicplus.ng_states import gen_fock_coherent, eps_fock_coherent
+#from strawberryfields.backends.bosonicbackend.bosoniccircuit import BosonicModes
+
+from bosonicplus.states.coherent import gen_fock_coherent
+#from bosonicplus.ng_states import gen_fock_coherent, eps_fock_coherent
 
 # Different conventions in these codes (REVIEW)
 
-
 # PNRD MEASUREMENT
 # ------------------------------------
-def measure_fock(n, data, mode, inf):  
-    """Returns array of means, covs and weights after PNRD of a mode post selected on outcome n
+def project_fock_coherent(n, data, mode, inf=1e-4):  
+    """Returns data tuple after projecting mode on fock state n (in coherent approx)
     
     Args:
         n (int): photon number
@@ -20,7 +21,7 @@ def measure_fock(n, data, mode, inf):
         inf (float): infidelity of the fock approx
         
     Returns:
-        data_A (tuple): post selected state data
+        data_A (tuple): 
         prob (float): probability of the measurement
     """
     means, covs, weights = data
@@ -68,21 +69,24 @@ def measure_fock(n, data, mode, inf):
     reweights /=  prob
 
     data_A = r_A_prime, sigma_A_prime, reweights
+
    
     return data_A, prob
 
-def post_select_PNRD(circuit, mode, n, inf = 1e-4):
-    """PNRD measurement for BosonicModes class. ?New circuit has one less mode, so be careful with indexing.
+def post_select_fock_coherent(circuit, mode, n, inf = 1e-4):
+    """Post select on counting n photons in mode. ?New circuit has one less mode, so be careful with indexing.
 
     Args: 
-        circuit (BosonicModes)
+        circuit (BosonicModes): circuit object
         mode (int) : measured mode index 
-        n (int) : Fock number
+        n (int) : photon number
+
+    Returns: updates circuit object
     """
 
     data = circuit.means, circuit.covs, circuit.weights
 
-    data_out, prob = measure_fock(n, data, mode, inf)
+    data_out, prob = project_fock_coherent(n, data, mode, inf)
     
     
     # Delete the measured mode 
@@ -100,8 +104,6 @@ def post_select_PNRD(circuit, mode, n, inf = 1e-4):
 # PSEUDO PNRD MEASUREMENT
 # --------------------------------
 
-
-
 def pkn(k,n, N):
     """ n photon number probabilities of pseudo POVM with N on/off detectors and k clicks
 
@@ -114,6 +116,13 @@ def pkn(k,n, N):
 
 def ppnrd_povm_thermal(k, N):
     """Pseudo pnrd povm as weighted sum of thermal states. 
+    
+    Args: 
+        k (int): Number of clicks
+        N (int): Number of on/off detectors in pseudo PNRD
+
+    Returns:
+        data (tuple): data tuple of POVM (sum of Gaussians)
     """
 
     ls = np.arange(k+1)

@@ -3,6 +3,7 @@ import itertools as it
 import strawberryfields as sf
 from strawberryfields.backends.states import BaseBosonicState
 from mpmath import mp
+from scipy.special import comb
 
 def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="real", shape="square"):
         r"""

@@ -73,7 +73,7 @@ def project_fock_coherent(n, data, mode, inf=1e-4):
    
     return data_A, prob
 
-def post_select_fock_coherent(circuit, mode, n, inf = 1e-4):
+def post_select_fock_coherent(circuit, mode, n, inf = 1e-4, out = False):
     """Post select on counting n photons in mode. ?New circuit has one less mode, so be careful with indexing.
 
     Args: 
@@ -84,9 +84,18 @@ def post_select_fock_coherent(circuit, mode, n, inf = 1e-4):
     Returns: updates circuit object
     """
 
+    if sf.hbar != 2:
+        raise ValueError('Due to how state data is stored in BosonicModes and BaseBosonicState, setting sf.hbar!=2 will give wrong results.')
+
     data = circuit.means, circuit.covs, circuit.weights
 
     data_out, prob = project_fock_coherent(n, data, mode, inf)
+
+    if out:
+        print(f'Measuring {n} photons in mode {mode}.')
+        print(f'Data shape before measurement, {[i.shape for i in data]}.')
+        print('Probability of measurement = {:.3e}'.format(prob))
+        print(f'Data shape after measurement, {[i.shape for i in data_out]}')
     
     
     # Delete the measured mode 
@@ -142,34 +151,9 @@ def ppnrd_povm_thermal(k, N):
     return data
 
 
-def post_select_ppnrd_thermal(circuit, mode, n, M):
-    """
-    Detect mode wth pPNRD registering n clicks by demultiplexing into M on/off detectors.
-    The pPNRD POVM is written as a linear combination of Gaussians (thermal states) and the
-    circuit's Gaussian means, covs and weights are updated according to the Gaussian transformation rules of 
-    Bourassa et al. 10.1103/PRXQuantum.2.040315 . 
-
-    Extension/generalisation of code from strawberryfield's bosonicbackend. 
+def project_ppnrd_thermal(data, mode, n, M):
     
-    To do: 
-        Write down formula in documentation.
-    
-    Args: 
-        circuit (object): BosonicModes class
-        mode (int): mode to be detected
-        n (int): number of clicks detected
-        M (int): number of on/off detectors in the click-detector    
-        
-    Returns: updates circuit object
-    
-    """
-    if n > M:
-        raise ValueError('Number of clicks cannot exceed click detectors.')
-
-    # Extract circuit data
-    weights = circuit.weights
-    means = circuit.means
-    covs = circuit.covs
+    means, covs, weights = data
     
     modes = [mode]
     mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1))
@@ -180,7 +164,6 @@ def post_select_ppnrd_thermal(circuit, mode, n, M):
     # pPNRD PNRD POVM with thermal states
     mu_povm, sigma_povm, weights_povm = ppnrd_povm_thermal(n, M)    
 
-    
     # New data sizes
     M = len(mu_povm)
     N = len(sigma_A)
@@ -205,21 +188,59 @@ def post_select_ppnrd_thermal(circuit, mode, n, M):
 
     prob = np.abs(np.sum(new_weights))
     new_weights /=  prob
+
+    data_A = r_A_prime, sigma_A_prime, new_weights
     
-    #Update circuit data
-    #circuit.covs = ops.reassemble_multi(sigma_A_prime, mode_ind)
-    #circuit.means = ops.reassemble_vector_multi(r_A_prime, mode_ind)
-    #circuit.weights = new_weights
-
-    #circuit.loss(0.0, mode) #Set detected mode to vacuum. OBS: could also delete the mode like in post_select_PNRD
+    return data_A, prob 
 
 
+def post_select_ppnrd_thermal(circuit, mode, n, M, out =False):
+    """
+    Detect mode wth pPNRD registering n clicks by demultiplexing into M on/off detectors.
+    The pPNRD POVM is written as a linear combination of Gaussians (thermal states) and the
+    circuit's Gaussian means, covs and weights are updated according to the Gaussian transformation rules of 
+    Bourassa et al. 10.1103/PRXQuantum.2.040315 . 
+
+    Extension/generalisation of code from strawberryfield's bosonicbackend. 
+    
+    To do: 
+        Write down formula in documentation.
+    
+    Args: 
+        circuit (object): BosonicModes class
+        mode (int): mode to be detected
+        n (int): number of clicks detected
+        M (int): number of on/off detectors in the click-detector    
+        out (bool): print output text
+        
+    Returns: updates circuit object
+    
+    """
+    if n > M:
+        raise ValueError('Number of clicks cannot exceed click detectors.')
+
+    if sf.hbar != 2:
+        raise ValueError('Due to how state data is stored in BosonicModes and BaseBosonicState, setting sf.hbar!=2 will give wrong results.')
+
+    # Extract circuit data
+    data = circuit.means, circuit.covs, circuit.weights
+
+    data_out, prob = project_ppnrd_thermal(data, mode, n, M)
+
+    if out:
+        print(f'Measuring {n} clicks in mode {mode}.')
+        print(f'Data shape before measurement, {[i.shape for i in data]}.')
+        print('Probability of measurement = {:.3e}'.format(prob))
+        print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+        
     # Delete the measured mode 
     num_modes = len(circuit.get_modes())
     circuit.reset(num_subsystems = num_modes -1)
     
     #Update circuit data
-    circuit.covs = sigma_A_prime
-    circuit.means = r_A_prime
-    circuit.weights = new_weights
+    means, covs, weights = data_out
+    circuit.covs = covs
+    circuit.means = means
+    circuit.weights = weights
     circuit.success *= prob
+    

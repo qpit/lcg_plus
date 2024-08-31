@@ -8,7 +8,7 @@ def wig_mn(m, n, x, p):
     if n > m:
         m, n = n, m
         p = -p
-
+    
     x /= np.sqrt(sf.hbar)
     p /= np.sqrt(sf.hbar)
     
@@ -38,6 +38,7 @@ def Gauss(sigma, mu, x, p):
     Norm = 1/np.sqrt(np.linalg.det(sigma*2*np.pi))
     
     return Norm * np.exp(exparg)
+
     
 
 def get_wigner_coherent(state, x, p):
@@ -46,9 +47,9 @@ def get_wigner_coherent(state, x, p):
     """
     means, cov, weights = state.data
 
-    #Check cov shape
-    if cov.shape[0] != 1: 
-        raise ValueError('cov is not in the coherent rep. Use state.wigner() instead.')
+    #Check cov shape (check doesnt work if cov.shape is (2,2) ) 
+    #if len(cov) > 1: 
+        #raise ValueError('cov is not in the coherent rep. Use state.wigner() instead.')
     
     W = 0
         

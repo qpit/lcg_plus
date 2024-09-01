@@ -45,12 +45,12 @@ def plot_wig(ax, W, xvec, pvec, colorbar = True, GKP = False):
     scale = np.max(W.real)
     nrm = mpl.colors.Normalize(-scale, scale)
     if GKP:
-        ax.contourf(xvec /np.sqrt(sf.hbar * np.pi), pvec /np.sqrt(sf.hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        im = ax.contourf(xvec /np.sqrt(sf.hbar * np.pi), pvec /np.sqrt(sf.hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.grid('on')
     else:
-        ax.contourf(xvec, pvec, W, 100, cmap=cm.RdBu, norm = nrm)
+        im = ax.contourf(xvec, pvec, W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x$", fontsize=12)
         ax.set_ylabel(r"$p$", fontsize=12)
     #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
@@ -60,6 +60,7 @@ def plot_wig(ax, W, xvec, pvec, colorbar = True, GKP = False):
         plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax = ax, shrink = 0.82)
     
     ax.set_aspect("equal")
+    return im
 
 
 def get_wigner_coherent_comb(data, x, p, MP = False):

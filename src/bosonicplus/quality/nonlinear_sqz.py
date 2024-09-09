@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import factorial, genlaguerre
-from bosonicplus.ng_states import outer_coherent, gen_fock_superpos_coherent
+from bosonicplus.states.coherent import outer_coherent, gen_fock_superpos_coherent
 import strawberryfields as sf
 
 from strawberryfields.backends.states import BaseBosonicState

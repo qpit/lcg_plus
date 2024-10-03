@@ -37,14 +37,76 @@ def eps_fock_coherent(N, inf):
     """
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
-def gen_fock_coherent(N, infid, eps = None):
-    """Generate the Bosonic state data for a Fock state N in the coherent state representation.
-    FIX WONKY ARGUMENTS
+
+def gen_fock_coherent_fast(N, infid, eps = None):
+    """Generate the Bosonic state data for a Fock state N in the coherent state representation, 
+    where we use the real part of the interferences, reducing the number of Gaussians by around half
+
+    TO DO: write a test of this function in Fock_approximation.py and rewrite 
+    fidelity calculations with the real part
     
     Args:
         N (int): fock number
         infid (float): infidelity of approximation
-        eps (float): coherent state amplitude, takes presidence over infid if specified
+        eps (float): coherent state amplitude, takes presidence over infid if specified.
+        
+    See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
+    """
+
+    cov = 0.5*sf.hbar * np.eye(2)
+    means = []
+
+    theta = 2*np.pi/(N+1)
+    weights = []
+    
+    
+    if not eps:
+        eps = eps_fock_coherent(N, infid)
+    
+    for k in np.arange(N+1):
+
+        alpha = eps * np.exp(1j * theta * k) 
+
+        muk, cov, ck = outer_coherent(alpha, alpha)
+        
+        means.append(muk)
+        weights.append(ck)
+
+        for l in np.arange(1,N+1):
+
+            if l > k:
+    
+                beta = eps * np.exp(1j * theta * l)
+    
+                mukl, cov, ckl = outer_coherent(alpha, beta)
+    
+                ckl *= np.exp(-theta * 1j* N*(k-l))
+                
+                means.append(mukl)
+                weights.append(2*ckl)
+
+    if N == 0:
+        means = []
+        means.append(np.array([0,0]))
+        
+    weights = np.array(weights)
+    
+    factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
+
+    weights *= factor
+
+    weights /= np.sum(weights.real) #renormalize
+    
+    return np.array(means), cov, weights
+
+
+def gen_fock_coherent(N, infid, eps = None):
+    """Generate the Bosonic state data for a Fock state N in the coherent state representation.
+    
+    Args:
+        N (int): fock number
+        infid (float): infidelity of approximation
+        eps (float): coherent state amplitude, takes presidence over infid if specified.
         
     See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
     """

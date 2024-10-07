@@ -1,6 +1,6 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, beam_splitter, rotation, squeezing, expand_vector
-from bosonicplus.newpackage.base import State
+from bosonicplus.base import State
 
 def build_interferometer(params : dict, nmodes : int, out = False):
     """
@@ -53,7 +53,7 @@ def build_interferometer(params : dict, nmodes : int, out = False):
                 print('Rgate[{:.3f}] on mode {}'.format(phis[i][0], phis[i][1]) )
 
     #Apply the symplectic to the state
-    state.apply_symplectic(Stot)
+    state.apply_symplectic(xxpp_to_xpxp(Stot))
                 
 
     #Apply displacements at the end of the circuit if any
@@ -68,8 +68,8 @@ def build_interferometer(params : dict, nmodes : int, out = False):
             disp += expand_vector(alpha, alpha[i][1]) #hbar = 2 by default
             if out:
                 print(r'Dgate[{:.3f}] on mode {}'.format(alpha, alphas[i][1]))
-
-        state.apply_displacement(disp)
+        
+        state.apply_displacement(xxpp_to_xpxp(disp))
             
     #Pure/thermal losses,
     loss = params['loss']

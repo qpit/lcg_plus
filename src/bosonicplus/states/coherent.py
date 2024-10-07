@@ -7,21 +7,20 @@
 
 import numpy as np
 from math import factorial
-import strawberryfields as sf
-from strawberryfields.backends.states import BaseBosonicState
+hbar = 2
 
 def outer_coherent(alpha, beta):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
     describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
     in Appendix A of https://arxiv.org/abs/2103.05530.
     """
-    cov = sf.hbar /2 * np.eye(2)
+    cov = hbar/2 * np.eye(2)
     re_alpha = alpha.real
     im_alpha = alpha.imag
     re_beta = beta.real
     im_beta = beta.imag
 
-    mu = np.sqrt(sf.hbar/2) * np.array([re_alpha + re_beta 
+    mu = np.sqrt(hbar/2) * np.array([re_alpha + re_beta 
                                         + 1j *(im_alpha - im_beta), 
                                         im_alpha + im_beta
                                         + 1j * (re_beta - re_alpha)])
@@ -53,7 +52,7 @@ def gen_fock_coherent_fast(N, infid, eps = None):
     See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
     """
 
-    cov = 0.5*sf.hbar * np.eye(2)
+    cov = 0.5*hbar * np.eye(2)
     means = []
 
     theta = 2*np.pi/(N+1)
@@ -112,7 +111,7 @@ def gen_fock_coherent(N, infid, eps = None):
     """
     
     
-    cov = 0.5*sf.hbar * np.eye(2)
+    cov = 0.5*hbar * np.eye(2)
     means = []
     theta = 2*np.pi/(N+1)
     weights = []
@@ -252,8 +251,6 @@ def fock_outer_coherent(N, M, eps1, eps2):
         cov (array): vacuum cov
     
     """
-
-    
     comp = 0
     if M > N:
         #Compute |M><N| and take complex conjugate at the end
@@ -261,7 +258,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
         eps1, eps2 = eps2, eps1
         comp = 1
         
-    cov = sf.hbar /2 * np.eye(2)
+    cov = hbar /2 * np.eye(2)
     means = []
     theta_N = 2*np.pi/(N+1)
     theta_M = 2*np.pi/(M+1)
@@ -278,7 +275,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
             Re_l = eps2*np.cos(theta_M * l)
             Im_l = eps2*np.sin(theta_M * l)
             
-            mulk = np.sqrt(sf.hbar/2) * np.array([Re_k + Re_l + 1j*(Im_k - Im_l), Im_k + Im_l + 1j*(Re_l - Re_k)])
+            mulk = np.sqrt(hbar/2) * np.array([Re_k + Re_l + 1j*(Im_k - Im_l), Im_k + Im_l + 1j*(Re_l - Re_k)])
             means.append(mulk)
             
 
@@ -299,8 +296,6 @@ def fock_outer_coherent(N, M, eps1, eps2):
     
     factor = factorial_simplify/((N+1)*(M+1)) * np.exp(eps1**2/2+eps2**2/2)/(eps1**N * eps2**M)
 
-    
-    
     weights *= factor
     means = np.array(means)
     weights = np.array(weights)

@@ -1,35 +1,34 @@
 import numpy as np
 from scipy.special import factorial
 from .fockbasis import density_mn
-from .coherent import outer_coherent
+from .coherent import outer_coherent, gen_fock_superpos_coherent
 
-def gkp_nonlinear_squeezing_operator(cutoff, N=1, type = '0'):
+def gkp_nonlinear_squeezing_operator(cutoff, N=1, which = '0'):
     """Construct the GKP nonlinear squeezing operator in the Fock basis up to a cutoff for a type of GKP state
     """
-
     I = np.eye(cutoff+1)
     
-    if type == '0':
+    if which == '0':
         alpha = np.sqrt(2) * np.sqrt(np.pi)*np.sqrt(N)
         
         rho = 1/2 *( 4*I - density_mn(-1j*alpha/2, cutoff) - density_mn(1j*alpha/2,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff))
 
-    elif type == '1':
+    elif which == '1':
         alpha = np.sqrt(2) * np.sqrt(np.pi)*np.sqrt(N)
         
         rho = 1/2 *( 4*I + density_mn(-1j*alpha/2, cutoff) + density_mn(1j*alpha/2,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff))
 
-    elif type == 's0': #symmetric zero
+    elif which == 's0': #symmetric zero
         alpha = np.sqrt(np.pi)*np.sqrt(N)
         
         rho = 1/2 *( 4*I - density_mn(-1j*alpha, cutoff) - density_mn(1j*alpha,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff))
 
-    elif type == 's1': #symmetric one
+    elif which == 's1': #symmetric one
         alpha = np.sqrt(np.pi)*np.sqrt(N)
         
         rho = 1/2 *( 4*I + density_mn(-1j*alpha, cutoff) + density_mn(1j*alpha,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff))
 
-    elif type == 'h': #hexagonal
+    elif which == 'h': #hexagonal Mareks
         kappa_p = np.sqrt(np.pi/8)*(3**(1/4) + 3**(-1/4))*np.sqrt(N)
         kappa_m = np.sqrt(np.pi/8)*(3**(1/4) - 3**(-1/4))*np.sqrt(N)
 
@@ -38,7 +37,7 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, type = '0'):
         
         rho = 1/2 *( 4*I - density_mn(alpha_x, cutoff) - density_mn(-alpha_x,cutoff) - density_mn(alpha_p,cutoff) - density_mn(-alpha_p,cutoff))
 
-    elif type == 'h0':
+    elif which == 'h0':
         #kappa_p = np.sqrt(np.pi/8)*(3**(1/4) + 3**(-1/4))*np.sqrt(N) Petr's 
         #kappa_m = np.sqrt(np.pi/8)*(3**(1/4) - 3**(-1/4))*np.sqrt(N)
 
@@ -50,7 +49,7 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, type = '0'):
         
         rho = 1/2 *( 4*I - density_mn(alpha_x, cutoff) - density_mn(-alpha_x,cutoff) - density_mn(alpha_p,cutoff) - density_mn(-alpha_p,cutoff))
         
-    elif type == 'h1':
+    elif which == 'h1':
         #kappa_p = np.sqrt(np.pi/8)*(3**(1/4) + 3**(-1/4))*np.sqrt(N)
         #kappa_m = np.sqrt(np.pi/8)*(3**(1/4) - 3**(-1/4))*np.sqrt(N)
 
@@ -63,12 +62,12 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, type = '0'):
         rho = 1/2 *( 4*I - density_mn(alpha_x, cutoff) - density_mn(-alpha_x,cutoff) + density_mn(alpha_p,cutoff) + density_mn(-alpha_p,cutoff))
     return rho
 
-def gkp_operator_coherent(cutoff, type, eps):
+def gkp_operator_coherent(cutoff, which, eps):
     """Get GKP non-linear squeezing operator up to a cutoff in the Fock space in the coherent state decomp
     """
     means = []
     weights = []
-    rho = GKP_nonlinear_squeezing_operator(cutoff, type = type)
+    rho = GKP_nonlinear_squeezing_operator(cutoff, which=which)
     N = cutoff
     coeffs = np.zeros((cutoff+1, cutoff +1), dtype = 'complex')
 
@@ -94,5 +93,23 @@ def gkp_operator_coherent(cutoff, type, eps):
     
             
     return np.array(means), np.array(cov), np.array(weights) #Don't normalise! Operator Q is not supposed to be normalised
+
+def gen_gkp_coherent(n, which, N = 1,inf = 1e-4):
+    """
+    Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
+    Args: 
+        n: Fock cutoff
+        which: '0', '1', 's0', 's1', 'h'
+        N: scaling of the grid
+        inf: (in)fidelity of the coherent state approximation
+    """
+    rho = gkp_nonlinear_squeezing_operator(n, N, which)
+
+    w, v = np.linalg.eigh(rho)
+    
+    coeffs = v[:,0] #eigs always sorted from lowest to highest eigenvalue, choose lowest
+    data_gkp = gen_fock_superpos_coherent(coeffs, inf)
+    
+    return data_gkp
 
 

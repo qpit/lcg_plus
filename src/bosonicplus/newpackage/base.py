@@ -1,5 +1,6 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp
+from bosonicplus.newpackage.measurements import project_fock_coherent, project_ppnrd_thermal
 
 hbar = 2
 
@@ -18,7 +19,7 @@ class State:
         self.num_weights = len(self.weights)
         self.num_covs = len(self.covs) #Relevant for faster calculations
         self.ordering = 'xxpp'
-        
+        self.probability = 1 #For measurements
 
     def update_data(self, new_data : tuple):
         """Insert a custom data tuple
@@ -30,7 +31,7 @@ class State:
         self.weights = self.data[2]
         self.num_weights = len(self.weights)
         self.num_covs = len(self.covs)
-        self.num_modes = int(np.shape(self.means)[-1])
+        self.num_modes = int(np.shape(self.means)[-1]/2)
 
 
 
@@ -38,8 +39,8 @@ class State:
         """Change the ordering from xpxp to xxpp
         """
         means, covs, weights = self.data
-        means = [xxpp_to_xpxp(i) for i in means]
-        covs = [xxpp_to_xpxp(i) for i in covs] #quick workaround
+        means = np.array([xxpp_to_xpxp(i) for i in means])
+        covs = np.array([xxpp_to_xpxp(i) for i in covs]) #quick workaround
         self.update_data([means, covs, weights])
         self.ordering = 'xpxp'
 
@@ -47,8 +48,8 @@ class State:
         """Change the ordering from xpxp to xxpp
         """
         means, covs, weights = self.data
-        means = [xpxp_to_xxpp(i) for i in means]
-        covs = [xpxp_to_xxpp(i) for i in covs] #quick workaround
+        means = np.array([xpxp_to_xxpp(i) for i in means])
+        covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
         self.update_data([means, covs, weights])
         self.ordering = 'xxpp'
     
@@ -119,3 +120,66 @@ class State:
         
         #Update data
         self.update_data([means, cov, weights])
+
+    def post_select_fock_coherent(self, mode, n, inf = 1e-4, out = False):
+        """Post select on counting n photons in mode. New state has one less mode, so be careful with indexing.
+    
+        Args: 
+            mode (int) : measured mode index 
+            n (int) : photon number
+    
+        Returns: updates data
+        """
+        #Make sure that ordering is xpxp first
+        if self.ordering != 'xpxp':
+            self.to_xpxp()
+            
+        data_out, prob = project_fock_coherent(n, self.data, mode, inf)
+    
+        if out:
+            print(f'Measuring {n} photons in mode {mode}.')
+            print(f'Data shape before measurement, {[i.shape for i in self.data]}.')
+            print('Probability of measurement = {:.3e}'.format(prob))
+            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+
+        self.update_data(data_out)
+        self.probability *= prob
+
+
+    def post_select_ppnrd_thermal(self, mode, n, M, out =False):
+        """
+        Detect mode wth pPNRD registering n clicks by demultiplexing into M on/off detectors.
+        The pPNRD POVM is written as a linear combination of Gaussians (thermal states) and the
+        circuit's Gaussian means, covs and weights are updated according to the Gaussian transformation rules of 
+        Bourassa et al. 10.1103/PRXQuantum.2.040315 . 
+    
+        Extension/generalisation of code from strawberryfield's bosonicbackend. 
+        
+        To do: 
+            Write down formula in documentation.
+        
+        Args: 
+            mode (int): mode to be detected
+            n (int): number of clicks detected
+            M (int): number of on/off detectors in the click-detector    
+            out (bool): print output text
+            
+        Returns: updates circuit object
+        
+        """
+        if n > M:
+            raise ValueError('Number of clicks cannot exceed click detectors.')
+        #Make sure that ordering is xpxp first
+        if self.ordering != 'xpxp':
+            self.to_xpxp()
+
+        data_out, prob = project_ppnrd_thermal(self.data, mode, n, M)
+    
+        if out:
+            print(f'Measuring {n} clicks in mode {mode}.')
+            print(f'Data shape before measurement, {[i.shape for i in self.data]}.')
+            print('Probability of measurement = {:.3e}'.format(prob))
+            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+            
+        self.update_data(data_out)
+        self.probability *= prob

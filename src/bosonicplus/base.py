@@ -1,6 +1,6 @@
 import numpy as np
-from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp
-from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal
+from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
+from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne
 from bosonicplus.states.wigner import Gauss
 import itertools as it
 from scipy.linalg import block_diag
@@ -199,6 +199,17 @@ class State:
             
         self.update_data(data_out)
         self.probability *= prob
+
+    def post_select_homodyne(self, mode, angle, result):
+
+        #First, rotate the mode by -angle
+        S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))
+        self.apply_symplectic(S)
+        
+        data_out, prob = project_homodyne(self.data, mode, result)
+        self.update_data(data_out)
+        self.probability *= prob
+        
 
     def get_wigner(self, x = np.linspace(-8,8,100), p = np.linspace(-8,8,100)):
         """

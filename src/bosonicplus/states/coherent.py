@@ -7,6 +7,7 @@
 
 import numpy as np
 from math import factorial
+from mpmath import mp, fp 
 #from bosonicplus.base import State
 hbar = 2
 
@@ -316,6 +317,56 @@ def fock_outer_coherent(N, M, eps1, eps2):
     
     
     return means, cov, weights
+
+def outer_sqz_coherent(r, alpha, beta):
+    """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
+    describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
+    in Appendix A of https://arxiv.org/abs/2103.05530.
+    r>0: Squeezing in x
+    r<0: Squeezing in p
+    """
+    cov = hbar /2 * np.array([[np.exp(-2*r),0],[0,np.exp(2*r)]])
+    gamma = alpha/(np.cosh(r)+np.sinh(r))
+    delta = beta/(np.cosh(r)+np.sinh(r))
+    
+    re_gamma = gamma.real
+    im_gamma = gamma.imag
+    re_delta = delta.real
+    im_delta = delta.imag
+    
+    mu = np.sqrt(hbar/2) * np.array([re_gamma + re_delta
+                                        + 1j *np.exp(-2*r)*(im_gamma - im_delta), 
+                                        im_gamma + im_delta
+                                        + 1j * np.exp(2*r)* (re_delta - re_gamma)])
+    coeff = mp.exp( -0.5 * mp.exp(-2*r)* (im_gamma - im_delta) **2
+                   - 0.5 * mp.exp(2*r)*(re_gamma - re_delta) **2
+                   - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
+
+    return mu, cov, coeff
+
+def gen_sqz_cat_coherent(r, alpha, k):
+    """Prepare a squeezed cat, requires a higher precision with mp.math
+
+    Args: 
+        r : squeezing of the cat
+        alpha: displacement of the cat (pre-squeezing)
+        k : parity
+    Returns:
+        tuple
+    """
+    
+    params = [(1, alpha,alpha), (1,-alpha,-alpha), ((-1)**k,alpha,-alpha), ((-1)**k,-alpha,alpha)]
+    means = []
+    weights = []
+    
+    for a in params:
+        means_a, cov, weights_a = outer_sqz_coherent(r, a[1], a[2])
+        means.append(means_a)
+        weights.append(weights_a*a[0])
+
+    weights = weights/ np.array(mp.fsum(weights))
+    
+    return np.array(means), cov, weights
 
 
 

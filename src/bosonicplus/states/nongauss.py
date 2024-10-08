@@ -1,11 +1,36 @@
 import numpy as np
-from strawberryfields.backends.states import BaseBosonicState
-from .coherent import gen_fock_superpos_coherent, gen_fock_coherent
+from math import factorial
+from bosonicplus.base import State
+from .coherent import gen_fock_coherent, gen_sqz_cat_coherent
+from .gkp_squeezing import gen_gkp_coherent
+hbar = 2
 
-from .gkp_squeezing import gkp_nonlinear_squeezing_operator
+def prepare_fock_coherent(n, inf=1e-4, epsilon = None):
+    """Prepare Fock state in coherent state approx"""
+    data = gen_fock_coherent(n, inf,epsilon)
+    fock = State(1)
+    fock.update_data(data)
+    return fock
 
-def prepare_gkp_coherent(n, type, N = 1,inf = 1e-4):
+def prepare_sqz_cat_coherent(r, alpha, k):
+    """Prepare a squeezed cat, requires a higher precision with mp.math
+    Args: 
+        r : squeezing of the cat
+        alpha: displacement of the cat (pre-squeezing)
+        k : parity
+    Returns:
+        State
+    
     """
+    data = gen_sqz_cat_coherent(r, alpha, k)
+    
+    sq_cat = State(1)
+    sq_cat.update_data(data)
+    return sq_cat
+
+def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4):
+    """
+    Returns State obj 
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
     Args: 
         n: Fock cutoff
@@ -13,21 +38,9 @@ def prepare_gkp_coherent(n, type, N = 1,inf = 1e-4):
         N: scaling of the grid
         inf: (in)fidelity of the coherent state approximation
     """
-    rho = gkp_nonlinear_squeezing_operator(n, N=N, type = type)
-
-    w, v = np.linalg.eigh(rho)
+    data_gkp = gen_gkp_coherent(n,which,N,inf)
+    state = State(1)
+    state.update_data(data_gkp)
     
-    coeffs = v[:,0] #eigs always sorted from lowest to highest eigenvalue, choose lowest
-    data_GKP = gen_fock_superpos_coherent(coeffs, inf)
-
-    gkp = BaseBosonicState(data_GKP, num_modes = 1, num_weights = len(data_GKP[-1]))
+    return state
     
-    return gkp
-
-def prepare_fock_coherent(n, inf=1e-4):
-    """Prepare Fock state in coherent state approx"""
-    data = gen_fock_coherent(n, inf)
-    fock = BaseBosonicState(data, num_modes = 1, num_weights = len(data[-1]))
-    return fock
-
-

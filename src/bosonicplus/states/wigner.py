@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import factorial, genlaguerre
-import strawberryfields as sf
+hbar = 2
 
 def wig_mn(m, n, x, p):
     """Wigner function of |m><n| state
@@ -9,10 +9,10 @@ def wig_mn(m, n, x, p):
         m, n = n, m
         p = -p
     
-    x /= np.sqrt(sf.hbar)
-    p /= np.sqrt(sf.hbar)
+    x /= np.sqrt(hbar)
+    p /= np.sqrt(hbar)
     
-    return (-1)**n * (x-p*1j)**(m-n) * 1/(sf.hbar * np.pi) * np.exp(-x*x - p*p) * \
+    return (-1)**n * (x-p*1j)**(m-n) * 1/(hbar * np.pi) * np.exp(-x*x - p*p) * \
             np.sqrt(2**(m-n) * factorial(n) / factorial(m)) * \
             genlaguerre(n, m-n)(2*x*x + 2*p*p)
 
@@ -40,19 +40,3 @@ def Gauss(sigma, mu, x, p):
     return Norm * np.exp(exparg)
 
     
-
-def get_wigner_coherent(state, x, p):
-    """Returns the Wigner function of the state
-    The state must be in the coherent state representation, i.e. there should only be one cov and it should be the vacuum.
-    """
-    means, cov, weights = state.data
-
-    #Check cov shape (check doesnt work if cov.shape is (2,2) ) 
-    #if len(cov) > 1: 
-        #raise ValueError('cov is not in the coherent rep. Use state.wigner() instead.')
-    
-    W = 0
-        
-    for i, mu in enumerate(means):
-        W += weights[i] * Gauss(cov, mu, x, p)
-    return W

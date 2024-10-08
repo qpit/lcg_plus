@@ -1,6 +1,9 @@
 import numpy as np
-from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp
-from bosonicplus.newpackage.measurements import project_fock_coherent, project_ppnrd_thermal
+from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
+from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne
+from bosonicplus.states.wigner import Gauss
+import itertools as it
+from scipy.linalg import block_diag
 
 hbar = 2
 
@@ -18,7 +21,7 @@ class State:
         self.data = [self.means, self.covs, self.weights]
         self.num_weights = len(self.weights)
         self.num_covs = len(self.covs) #Relevant for faster calculations
-        self.ordering = 'xxpp'
+        self.ordering = 'xpxp'
         self.probability = 1 #For measurements
 
     def update_data(self, new_data : tuple):
@@ -30,32 +33,41 @@ class State:
         self.covs = self.data[1]
         self.weights = self.data[2]
         self.num_weights = len(self.weights)
-        self.num_covs = len(self.covs)
+        
         self.num_modes = int(np.shape(self.means)[-1]/2)
-
-
+        if len(self.covs.shape) != 3: 
+            self.covs = np.array([self.covs]) #Quick fix for places where covs is (2,2), not (1,2,2)
+            
+        self.num_covs = len(self.covs)
 
     def to_xpxp(self):
         """Change the ordering from xpxp to xxpp
         """
-        means, covs, weights = self.data
-        means = np.array([xxpp_to_xpxp(i) for i in means])
-        covs = np.array([xxpp_to_xpxp(i) for i in covs]) #quick workaround
-        self.update_data([means, covs, weights])
-        self.ordering = 'xpxp'
+        if self.ordering == 'xpxp':
+            raise ValueError('Already in xpxp ordering.')
+        else:
+            means, covs, weights = self.data
+            means = np.array([xxpp_to_xpxp(i) for i in means])
+            covs = np.array([xxpp_to_xpxp(i) for i in covs]) #quick workaround
+            self.update_data([means, covs, weights])
+            self.ordering = 'xpxp'
 
     def to_xxpp(self):
         """Change the ordering from xpxp to xxpp
         """
-        means, covs, weights = self.data
-        means = np.array([xpxp_to_xxpp(i) for i in means])
-        covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
-        self.update_data([means, covs, weights])
-        self.ordering = 'xxpp'
+        if self.ordering == 'xxpp':
+            raise ValueError('Already in xxpp ordering.')
+        else:
+            means, covs, weights = self.data
+            means = np.array([xpxp_to_xxpp(i) for i in means])
+            covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
+            self.update_data([means, covs, weights])
+            self.ordering = 'xxpp'
     
-    def apply_symplectic(self, S : np.ndarray):
+    def apply_symplectic(self, S : np.ndarray, ordering = 'xpxp'):
         """ Apply symplectic to data
             S (array) : symplectic matrix
+            ordering (str): ordering of S
 
             To do: check covs update when num_covs != 1
 
@@ -66,6 +78,10 @@ class State:
         #First check that S has the correct dimensions
         if np.shape(S)[0] != int(np.shape(means)[-1]):
             raise ValueError('S must must be 2nmodes x 2nmodes. ')
+
+        if ordering != self.ordering:
+            raise ValueError('Symplectic not in same ordering as data.')
+            
         if self.num_covs == 1: 
             new_covs = S @ covs @ S.T
         else:
@@ -183,3 +199,52 @@ class State:
             
         self.update_data(data_out)
         self.probability *= prob
+
+    def post_select_homodyne(self, mode, angle, result):
+
+        #First, rotate the mode by -angle
+        S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))
+        self.apply_symplectic(S)
+        
+        data_out, prob = project_homodyne(self.data, mode, result)
+        self.update_data(data_out)
+        self.probability *= prob
+        
+
+    def get_wigner(self, x = np.linspace(-8,8,100), p = np.linspace(-8,8,100)):
+        """
+        Obtain the (single mode) Wigner function on a grid of phase space points
+        """
+        if self.num_modes != 1:
+            raise ValueError('State has multiple modes.')
+        else:
+            W = 0
+            if len(self.covs) == 1:
+                for i, mu in enumerate(self.means):
+                    W += self.weights[i] * Gauss(self.covs, mu, x, p)
+            else:
+                for i, mu in enumerate(self.means):
+                    W += self.weights[i] * Gauss(self.covs[i], mu, x, p)
+            return W
+
+    def multimode_copy(self, n):
+        """Duplicate a single mode state into onto n modes.
+        """
+        
+        # Check number of modes in state
+        if self.num_modes != 1:
+            raise ValueError('This is a multimode state. Can only copy make copies of single mode states.')
+            
+        means, cov, weights = self.data
+        
+        
+        new_weights = np.prod(np.array(list(it.product(weights.tolist(), repeat = n, ))), axis = 1)
+        new_means = np.reshape(np.array(list(it.product(means, repeat = n))), (len(weights)**n, n*2) )
+        new_cov = np.array([block_diag(*tup) for tup in list(it.product(cov, repeat = n))])
+    
+        
+        data_new = new_means, new_cov, new_weights
+        
+        self.update_data(data_new)
+        
+    

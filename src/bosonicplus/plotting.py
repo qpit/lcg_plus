@@ -2,8 +2,8 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 from matplotlib import cm
 import numpy as np
-import strawberryfields as sf
 from mpmath import mp, fp
+hbar = 2
 
 def Gauss(sigma, mu, x, p, MP = False):
     """
@@ -45,7 +45,7 @@ def plot_wig(ax, W, xvec, pvec, colorbar = True, GKP = False):
     scale = np.max(W.real)
     nrm = mpl.colors.Normalize(-scale, scale)
     if GKP:
-        im = ax.contourf(xvec /np.sqrt(sf.hbar * np.pi), pvec /np.sqrt(sf.hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        im = ax.contourf(xvec /np.sqrt(hbar * np.pi), pvec /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.grid('on')
@@ -64,9 +64,7 @@ def plot_wig(ax, W, xvec, pvec, colorbar = True, GKP = False):
 
 
 def get_wigner_coherent_comb(data, x, p, MP = False):
-    
     means, cov, weights  = data
-    
     W = 0
         
     for i, mu in enumerate(means):
@@ -91,7 +89,7 @@ def plot_wigner_coherent_comb(ax, data, xvec, pvec, colorbar = True, GKP = False
     nrm = mpl.colors.Normalize(-scale, scale)
 
     if GKP:
-        ax.contourf(xvec /np.sqrt(sf.hbar * np.pi), pvec /np.sqrt(sf.hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        ax.contourf(xvec /np.sqrt(hbar * np.pi), pvec /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.grid('on')
@@ -128,14 +126,14 @@ def plot_wigner_marginals(W, x, p, title, GKP='rect'):
     nrm = mpl.colors.Normalize(-scale, scale)
 
     if GKP == 'rect':
-        grid = np.sqrt(sf.hbar*np.pi)
+        grid = np.sqrt(hbar*np.pi)
         ax.contourf(x /grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=15)
         #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=15)
         ax.grid('on')
     elif GKP =='square':
-        grid = np.sqrt(sf.hbar*np.pi/2)
+        grid = np.sqrt(hbar*np.pi/2)
         ax.contourf(x/grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi/2})^{-1}$", fontsize=15)
         #ax.set_ylabel(r"$p(\sqrt{\hbar\pi/2})^{-1}$", fontsize=12)
@@ -177,7 +175,7 @@ def plot_marginal(ax, W, x, p, title, which = 'x', GKP = 'rect', ls='solid', lw=
 
 
     if GKP == 'rect':
-        grid = np.sqrt(sf.hbar*np.pi)
+        grid = np.sqrt(hbar*np.pi)
         if which == 'x':
         
             ax.plot(x/grid, marginal_x, linewidth=lw, linestyle=ls,label=lab)
@@ -192,7 +190,7 @@ def plot_marginal(ax, W, x, p, title, which = 'x', GKP = 'rect', ls='solid', lw=
             ax.set_ylabel(r'$P(p)$')
             
     elif GKP =='square':
-        grid = np.sqrt(sf.hbar*np.pi/2)
+        grid = np.sqrt(hbar*np.pi/2)
         if which == 'x':
         
             ax.plot(x/grid, marginal_x,linewidth=lw, linestyle=ls,label=lab)

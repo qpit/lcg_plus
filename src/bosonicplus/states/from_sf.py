@@ -3,6 +3,7 @@ import itertools as it
 
 from mpmath import mp
 from scipy.special import comb
+from bosonicplus.base import State
 
 def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="real", shape="square"):
         r"""
@@ -129,8 +130,9 @@ def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="rea
         )
         covs = np.repeat(covs[None, :], weights.size, axis=0)
         
-        
-        return [means, covs, weights]
+        state = State(1)
+        state.update_data([means, covs, weights])
+        return state
 
 
 def prepare_fock_bosonic(n, r=0.05):
@@ -176,7 +178,10 @@ def prepare_fock_bosonic(n, r=0.05):
     )
     weights /= np.sum(weights)
 
-    return [means, covs, weights]
+    state = State(1)
+    state.update_data([means, covs, weights])
+
+    return state
 
 def prepare_cat_bosonic(a, theta, p, MP = False):
     r"""Prepares the arrays of weights, means and covs for a cat state:
@@ -234,6 +239,8 @@ def prepare_cat_bosonic(a, theta, p, MP = False):
     
     covs = 0.5 * hbar * np.identity(2, dtype=float)
     #covs = np.repeat(covs[None, :], weights.size, axis=0)  
-    
-    return [means, covs, weights]
 
+    state = State(1)
+    state.update_data([means, covs, weights])
+    
+    return state

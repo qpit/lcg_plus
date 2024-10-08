@@ -96,6 +96,7 @@ def gkp_operator_coherent(cutoff, which, eps):
 
 def gen_gkp_coherent(n, which, N = 1,inf = 1e-4):
     """
+    Returns state data for 
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
     Args: 
         n: Fock cutoff
@@ -111,5 +112,24 @@ def gen_gkp_coherent(n, which, N = 1,inf = 1e-4):
     data_gkp = gen_fock_superpos_coherent(coeffs, inf)
     
     return data_gkp
+
+
+def prepare_gkp_coherent(n, which, N = 1,inf = 1e-4):
+    """
+    Returns State obj 
+    Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
+    Args: 
+        n: Fock cutoff
+        type: '0', '1', 's0', 's1', 'h'
+        N: scaling of the grid
+        inf: (in)fidelity of the coherent state approximation
+    """
+    data_gkp = gen_gkp_coherent(n,which,N,inf)
+    state = State(1)
+    state.update_data(data_gkp)
+    
+    return state
+
+
 
 

@@ -7,6 +7,7 @@
 
 import numpy as np
 from math import factorial
+#from bosonicplus.base import State
 hbar = 2
 
 def outer_coherent(alpha, beta):
@@ -147,7 +148,8 @@ def gen_fock_coherent(N, infid, eps = None):
     weights /= np.sum(weights) #renormalize
     
     return np.array(means), cov, weights
-    
+
+
 def eps_superpos_coherent(N, inf):
     """Returns the magnitude of the coherent states giving for the desired 
     infidelity of the Fock superposition up to photon number N.
@@ -314,4 +316,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
     
     
     return means, cov, weights
+
+
+
 

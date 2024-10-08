@@ -1,9 +1,10 @@
-from bosonicplus.states.coherent import gen_fock_coherent, order_infidelity_fock_coherent
+from bosonicplus.states.coherent import order_infidelity_fock_coherent
+from bosonicplus.states.nongauss import prepare_fock_coherent
 from bosonicplus.states.wigner import wig_mn
-from bosonicplus.plotting import get_wigner_coherent_comb, plot_wig
-from bosonicplus.quality.fidelity import fidelity_with_wigner
+from bosonicplus.plotting import plot_wig
+from bosonicplus.fidelity import fidelity_with_wigner
 from matplotlib import pyplot as plt
-import strawberryfields as sf
+#import strawberryfields as sf
 import numpy as np
 from matplotlib.animation import ArtistAnimation, FuncAnimation
 import os
@@ -28,18 +29,20 @@ def make_animation(N, save =True, xmax=6, xres=400, epsilons = np.linspace(0.5,4
 
     fig, ax = plt.subplots(figsize = (5,5))
     
-    sf.hbar = 1
-    x = np.sqrt(sf.hbar)*np.linspace(-xmax,xmax,xres)
+    hbar = 2
+    x = np.sqrt(hbar)*np.linspace(-xmax,xmax,xres)
     X, P = np.meshgrid(x,x )
     W_fock = wig_mn(N,N, X, P)
     
     ims = []
     for i, eps in enumerate(epsilons):
-        data = gen_fock_coherent(N, 1, eps)
-        covs, means, weights = data
+        #data = gen_fock_coherent(N, 1, eps)
+        #covs, means, weights = data
+        state = prepare_fock_coherent(N,1,eps)
+        W = state.get_wigner(x,x)
     
         infid = order_infidelity_fock_coherent(N, eps)
-        W = get_wigner_coherent_comb(data, x, x)
+        #W = get_wigner_coherent_comb(data, x, x)
         im = plot_wig(ax, W, x, x, colorbar = False)
         
         Drawing_uncolored_circle = plt.Circle( (0,0 ), np.sqrt(2*sf.hbar)*eps ,fill = False, color = 'black' , linestyle='dashed',linewidth=2)
@@ -49,7 +52,7 @@ def make_animation(N, save =True, xmax=6, xres=400, epsilons = np.linspace(0.5,4
         for l in np.arange(N+1):
             betas[l] = eps * np.exp(1j * theta * l)
             
-        im_gs = ax.scatter(np.sqrt(sf.hbar*2)*betas.real, np.sqrt(sf.hbar*2)*betas.imag, marker='o',color='k')
+        im_gs = ax.scatter(np.sqrt(hbar*2)*betas.real, np.sqrt(hbar*2)*betas.imag, marker='o',color='k')
         
         #im_arrow = ax.arrow(0, 0, np.sqrt(2*sf.hbar)*eps, 0, color = 'red', linewidth = 2, head_width = 0.2, head_length = 0)
         im_eps = ax.text(2, 3.5, rf'$\epsilon = {np.round(eps,3)}$', size = 12)

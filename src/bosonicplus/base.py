@@ -2,6 +2,7 @@ import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
 from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne
 from bosonicplus.states.wigner import Gauss
+from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
 
@@ -27,6 +28,7 @@ class State:
     def update_data(self, new_data : tuple):
         """Insert a custom data tuple
         To do: what if new_data is in a different ordering?
+        To do: fix weird weight change by writing separate update covs and update means methods
         """
         self.data = new_data
         self.means = self.data[0] 
@@ -63,6 +65,40 @@ class State:
             covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
             self.update_data([means, covs, weights])
             self.ordering = 'xxpp'
+
+    def apply_symplectic_fast(self, S, modes):
+    """Partition total system into A and B modes. Act with symplectic on just the B modes, and
+    reassemble the covariance matrix and disp vector from the updated elements. 
+    This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
+    """
+
+        if len(modes) != S.shape[0]/2:
+            raise ValueError('Symplectic must have same dimension as the modes list')
+        if self.num_modes == 2 and len(modes)==2:
+            raise ValueError('Use apply_symplectic.')
+        
+        mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1)) #in xxpp 
+        mode_ind = xxpp_to_xpxp(mode_ind) #back to xpxp
+        
+        mode_inds = np.arange(2*self.num_modes)
+        
+        mode_ind_rest = list(set(mode_inds) - set(mode_ind))
+        
+        A, AB, B = chop_in_blocks_multi(self.covs, mode_ind) #Chop the system into A modes: untouched, and B modes: the modes the symplectic is applied to
+        a, b = chop_in_blocks_vector_multi(self.means, mode_ind)
+        
+        Bnew = np.einsum("...jk,...kl,...lm",S,B,S.T)
+        ABnew = np.einsum("...jk,...kl",AB,S.T)
+        bnew = np.einsum("...jk,...k",S,b)
+        
+        nw = self.num_weights #Number of weights
+        
+        self.covs[np.ix_(np.arange(nw),mode_ind,mode_ind)] = Bnew 
+        self.covs[np.ix_(np.arange(nw),mode_ind_rest, mode_ind)] = ABnew
+        self.covs[np.ix_(np.arange(nw),mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
+        
+        self.means[np.ix_(np.arange(nw),mode_ind)] = bnew
+
     
     def apply_symplectic(self, S : np.ndarray, ordering = 'xpxp'):
         """ Apply symplectic to data

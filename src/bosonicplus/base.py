@@ -67,10 +67,10 @@ class State:
             self.ordering = 'xxpp'
 
     def apply_symplectic_fast(self, S, modes):
-    """Partition total system into A and B modes. Act with symplectic on just the B modes, and
-    reassemble the covariance matrix and disp vector from the updated elements. 
-    This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
-    """
+        """Partition total system into A and B modes. Act with symplectic on just the B modes, and
+        reassemble the covariance matrix and disp vector from the updated elements. 
+        This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
+        """
 
         if len(modes) != S.shape[0]/2:
             raise ValueError('Symplectic must have same dimension as the modes list')

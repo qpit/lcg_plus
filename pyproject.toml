@@ -1,12 +1,11 @@
 [project]
 name = "bosonicplus"
-version = "2024.08.27"
+version = "2024.11.04"
 description = "Working extension of strawberryfields bosonic backend"
 dependencies = [
 	"numpy",
-	"scipy==1.9.3",
+	"scipy",
 	"mpmath",
-	"strawberryfields",
 	"matplotlib"
 	]
 

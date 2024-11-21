@@ -1,2 +1,6 @@
-from .conversions import r_to_dB, dB_to_r, Delta_to_dB, dB_to_Delta
-from .plotting import plot_wig, plot_wigner_marginals
+from importlib.metadata import version as _version, PackageNotFoundError
+try:
+    __version__ = _version(__name__)
+except PackageNotFoundError:
+    pass
+

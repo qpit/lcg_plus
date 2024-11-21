@@ -1,15 +1,18 @@
 [project]
 name = "bosonicplus"
-version = "2024.11.04"
-description = "Working extension of strawberryfields bosonic backend"
+version = "2024.11.20"
+description = "Gaussian and non-Gaussian continuous-variable quantum optics simulations."
+authors = [{name = "Olga Solodovnikova", email = "olgasol@dtu.dk"}]
 dependencies = [
 	"numpy",
 	"scipy",
 	"mpmath",
 	"thewalrus",
-	"matplotlib"
+	"matplotlib",
+    "pytest"
 	]
-
+[project.urls]
+homepage = "https://github.com/qpit/bosonicplus"
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

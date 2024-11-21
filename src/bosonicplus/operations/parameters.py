@@ -1,5 +1,5 @@
 import numpy as np
-import bosonicplus as bp
+from bosonicplus.conversions import dB_to_r
 
 def gen_Clements_indices(nmodes):
     """ Get a list of the beamsplitter indices of a Clements interferometer.
@@ -50,7 +50,7 @@ def gen_interferometer_params(nmodes, r_max_dB, bs_arrange = 'Clements'):
     """
 
     # Squeezers
-    r = bp.dB_to_r(r_max_dB)
+    r = dB_to_r(r_max_dB)
     rs = np.random.uniform(0.1,r,nmodes)
     rs_angle = np.random.uniform(-np.pi,np.pi, nmodes)
     sqz = list(zip(rs, rs_angle, range(nmodes)))
@@ -95,7 +95,7 @@ def gen_Clements_params(nmodes, r_max_dB):
     """
 
     # Squeezers
-    r = bp.dB_to_r(r_max_dB)
+    r = dB_to_r(r_max_dB)
     rs = np.random.uniform(0.1,r,nmodes)
     rs_angle = np.random.uniform(-np.pi,np.pi, nmodes)
     sqz = list(zip(rs, rs_angle, range(nmodes)))

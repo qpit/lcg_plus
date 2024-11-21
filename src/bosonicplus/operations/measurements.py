@@ -2,6 +2,7 @@ import numpy as np
 from scipy.special import comb
 from bosonicplus.states.coherent import gen_fock_coherent
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from mpmath import mp
 hbar = 2
 
 
@@ -59,7 +60,7 @@ def project_fock_coherent(n, data, mode, inf=1e-4):
     reweights = reweights.reshape([M*N])
     prob = np.sum(reweights)
     
-    reweights /=  prob
+    #reweights /=  prob
 
     data_A = r_A_prime, sigma_A_prime, reweights
 
@@ -142,8 +143,8 @@ def project_ppnrd_thermal(data, mode, n, M):
     new_weights = weights_povm[np.newaxis,:]*weights[:,np.newaxis] * Norm 
     new_weights = new_weights.reshape([M*N])
 
-    prob = np.abs(np.sum(new_weights))
-    new_weights /=  prob
+    prob = np.sum(new_weights)
+    #new_weights /=  prob
 
     data_A = r_A_prime, sigma_A_prime, new_weights
     
@@ -152,7 +153,7 @@ def project_ppnrd_thermal(data, mode, n, M):
 
 # Homodyne measurement
 # ----------------------------
-def project_homodyne(data, mode, result):
+def project_homodyne(data, mode, result, MP = False):
     r"""Following Brask's Gaussian note (single mode)
     Do a homodyne x-measurement on one mode
     """
@@ -183,17 +184,21 @@ def project_homodyne(data, mode, result):
     
     reweights_exp_arg = (sigma_B**(-1)*(result - r_B[:,0])**2).reshape(len(weights))
     
-    reweights_exp = np.exp(-0.5*reweights_exp_arg)
-    
-    Norm = (reweights_exp / np.sqrt(2*np.pi*sigma_B))
-   
-    reweights = weights * Norm
-    
-    prob = np.sum(reweights)
+    if MP: 
+        reweights_exp = np.array([mp.exp(-0.5*i) for i in reweights_exp_arg])
+    else:
+        reweights_exp = np.exp(-0.5*reweights_exp_arg)
 
-    reweights /=  prob
-
+    Norm = reweights_exp / np.sqrt(2*np.pi*sigma_B)
+    reweights = weights * Norm #mp?
+    
+    if MP:
+        prob = mp.fdot(weights, Norm )
+    else:
+        prob = np.sum(reweights)
+    
     data_A = r_A_prime, sigma_A_prime[np.newaxis,:], reweights
+    #/prob
     
     return data_A, prob
 

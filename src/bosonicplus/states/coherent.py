@@ -33,7 +33,7 @@ def outer_coherent(alpha, beta):
     return mu, cov, coeff
 
 def eps_fock_coherent(N, inf):
-    """Returns the amplitude $\eps = |\alpha|$ of the coherent states giving the desired fidelity  
+    """Returns the amplitude $\\eps = |\\alpha|$ of the coherent states giving the desired fidelity  
     to the N photon number state in the approximation - Eq? In M&A.
     """
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
@@ -318,7 +318,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
     
     return means, cov, weights
 
-def outer_sqz_coherent(r, alpha, beta):
+def outer_sqz_coherent(r, alpha, beta, MP = False):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
     describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
     in Appendix A of https://arxiv.org/abs/2103.05530.
@@ -338,13 +338,21 @@ def outer_sqz_coherent(r, alpha, beta):
                                         + 1j *np.exp(-2*r)*(im_gamma - im_delta), 
                                         im_gamma + im_delta
                                         + 1j * np.exp(2*r)* (re_delta - re_gamma)])
-    coeff = mp.exp( -0.5 * mp.exp(-2*r)* (im_gamma - im_delta) **2
-                   - 0.5 * mp.exp(2*r)*(re_gamma - re_delta) **2
-                   - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
+
+    
+    if MP:
+        coeff = mp.exp( -0.5 * mp.exp(-2*r)* (im_gamma - im_delta) **2
+                       - 0.5 * mp.exp(2*r)*(re_gamma - re_delta) **2
+                       - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
+    else:
+
+        coeff = np.exp( -0.5 * np.exp(-2*r)* (im_gamma - im_delta) **2
+                       - 0.5 * np.exp(2*r)*(re_gamma - re_delta) **2
+                       - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
 
     return mu, cov, coeff
 
-def gen_sqz_cat_coherent(r, alpha, k):
+def gen_sqz_cat_coherent(r, alpha, k, MP = False):
     """Prepare a squeezed cat, requires a higher precision with mp.math
 
     Args: 
@@ -360,13 +368,16 @@ def gen_sqz_cat_coherent(r, alpha, k):
     weights = []
     
     for a in params:
-        means_a, cov, weights_a = outer_sqz_coherent(r, a[1], a[2])
+        means_a, cov, weights_a = outer_sqz_coherent(r, a[1], a[2],MP)
         means.append(means_a)
         weights.append(weights_a*a[0])
-
-    weights = weights/ np.array(mp.fsum(weights))
+    if MP: 
+        weights = weights/ np.array(mp.fsum(weights))
+    else:
+        weights = weights/ np.array(np.sum(weights))
     
     return np.array(means), cov, weights
+
 
 
 

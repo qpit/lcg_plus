@@ -1,13 +1,16 @@
 import numpy as np
+from mpmath import mp
 
 hbar = 2
 
-def fidelity_coherent(state1, state2):
-    """Calculate fidelity between two states in coherent representation 
-    i.e. there is only one covariance matrix, but many weights and means.
+def fidelity_bosonic(state1, state2, MP = False):
+    """Calculate fidelity between two states in sum-of-gaussian representation, assuming one of them is pure
+    If state1 == state2, return the purity.
     
     Args:
-        
+        state1
+        state2
+        MP (bool): Not completely implemented yet
     Returns:
         fidelity (complex): fidelity of state1 with state2, assuming one of them is pure
     """
@@ -20,6 +23,12 @@ def fidelity_coherent(state1, state2):
 
     weights1 = state1.weights
     weights2 = state2.weights
+    if MP:
+        norm1 = mp.fsum(weights1)
+        norm2 = mp.fsum(weights2)
+    else:
+        norm1 = np.sum(weights1)
+        norm2 = np.sum(weights2)
     
     deltas = state1.means[:,np.newaxis,:] - state2.means[np.newaxis,:,:]
 
@@ -29,13 +38,12 @@ def fidelity_coherent(state1, state2):
         covsum = state1.covs[:,np.newaxis,:] + state2.covs[np.newaxis,:,:] 
 
     covsum_inv = np.linalg.inv(covsum)
-    
     exp_arg = np.einsum('...j,...jk,...k', deltas, covsum_inv, deltas)
   
     weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                * np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
                
-    fidelity = np.sum(weighted_exp)
+    fidelity = np.sum(weighted_exp)/(norm1*norm2)
     
     return fidelity
 

@@ -12,7 +12,7 @@ def prepare_fock_coherent(n, inf=1e-4, epsilon = None):
     fock.update_data(data)
     return fock
 
-def prepare_sqz_cat_coherent(r, alpha, k):
+def prepare_sqz_cat_coherent(r, alpha, k, MP =False):
     """Prepare a squeezed cat, requires a higher precision with mp.math
     Args: 
         r : squeezing of the cat
@@ -22,7 +22,7 @@ def prepare_sqz_cat_coherent(r, alpha, k):
         State
     
     """
-    data = gen_sqz_cat_coherent(r, alpha, k)
+    data = gen_sqz_cat_coherent(r, alpha, k, MP)
     
     sq_cat = State(1)
     sq_cat.update_data(data)

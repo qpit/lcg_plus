@@ -5,6 +5,8 @@ from mpmath import mp
 from scipy.special import comb
 from bosonicplus.base import State
 
+hbar = 2
+
 def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="real", shape="square"):
         r"""
         Copied from strawberryfields bosonicbackend, modified here.
@@ -119,11 +121,11 @@ def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="rea
         # Apply finite energy effect to means
         means = means[filt]
 
-        means *= 0.5 * damping * np.sqrt(np.pi * sf.hbar)
+        means *= 0.5 * damping * np.sqrt(np.pi * hbar)
         # Covariances all the same
         covs = (
             0.5
-            * sf.hbar
+            * hbar
             * (1 - np.exp(-2 * epsilon))
             / (1 + np.exp(-2 * epsilon))
             * np.identity(2)
@@ -209,20 +211,21 @@ def prepare_cat_bosonic(a, theta, p, MP = False):
     if np.isclose(a, 0):
         weights = np.array([1], dtype=complex)
         means = np.array([[0, 0]], dtype=complex)
-        covs = np.array([0.5 * sf.hbar * np.identity(2)])
-        return BaseBosonicState([means, covs, weights], num_modes = 1, num_weights = 1)
+        covs = np.array([0.5 * hbar * np.identity(2)])
+        state = State(1)
+        state.update_data([means, covs, weights])
+        return state
     
     # Normalization factor
     norm = 1 / (2 * (1 + np.exp(-2 * a**2) * np.cos(phi)))
-    hbar = sf.hbar
     
     alpha = a * np.exp(1j * theta)
     
     # Mean of |alpha><alpha| term
-    rplus = np.sqrt(2 * sf.hbar) * np.array([alpha.real, alpha.imag])
+    rplus = np.sqrt(2 * hbar) * np.array([alpha.real, alpha.imag])
     
     # Mean of |alpha><-alpha| term
-    rcomplex = np.sqrt(2 * sf.hbar) * np.array([1j * alpha.imag, -1j * alpha.real])
+    rcomplex = np.sqrt(2 * hbar) * np.array([1j * alpha.imag, -1j * alpha.real])
     
     # Coefficient for complex Gaussians
     if MP:

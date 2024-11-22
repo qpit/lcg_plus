@@ -8,6 +8,13 @@ hbar = 2
 def Gauss(sigma, mu, x, p, MP = False):
     """
     Returns the Gaussian in phase space point (x,p), or on a grid
+
+    Args:
+        sigma : covariance matrix
+        mu : displacement vector
+        x : np.ndarray 
+        p : np.ndarray
+        MP : bool
     Works for one sigma and one mu
     """
 
@@ -39,20 +46,25 @@ def Gauss(sigma, mu, x, p, MP = False):
     else: 
         return Norm * np.exp(exparg)
 
-def plot_wig(ax, W, xvec, pvec, colorbar = True, GKP = False):
+def plot_wig(ax, W, q1, q2, colorbar = True, xlabel = None, ylabel = None, GKP = False):
     
     W = np.round(W.real, 4)
     scale = np.max(W.real)
     nrm = mpl.colors.Normalize(-scale, scale)
     if GKP:
-        im = ax.contourf(xvec /np.sqrt(hbar * np.pi), pvec /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        im = ax.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
         ax.grid('on')
     else:
-        im = ax.contourf(xvec, pvec, W, 100, cmap=cm.RdBu, norm = nrm)
-        ax.set_xlabel(r"$x$", fontsize=12)
-        ax.set_ylabel(r"$p$", fontsize=12)
+        im = ax.contourf(q1, q2, W, 100, cmap=cm.RdBu, norm = nrm)
+        if xlabel is not None:
+            ax.set_xlabel(xlabel, fontsize=12)
+            ax.set_ylabel(ylabel, fontsize=12)
+        else:
+            ax.set_xlabel(r'$x$', fontsize=12)
+            ax.set_ylabel(r'$p$', fontsize=12)
+    
     #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
     #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
     

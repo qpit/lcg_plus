@@ -39,6 +39,7 @@ class State:
         self.weights = new_data[2]
         self.num_weights = len(self.weights)
         self.ordering = ordering
+        self.probability = np.sum(self.weights) 
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
@@ -87,7 +88,7 @@ class State:
             self.update_data([means, covs, weights], 'xxpp')
             #self.ordering = 'xxpp'
 
-    def apply_symplectic_fast(self, S, modes):
+    def apply_symplectic_fast(self, S, modes, ordering = 'xpxp'):
         """Partition total system into A and B modes. Act with symplectic on just the B modes, and
         reassemble the covariance matrix and disp vector from the updated elements. 
         This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
@@ -97,6 +98,8 @@ class State:
             raise ValueError('Symplectic must have same dimension as the modes list')
         if self.num_modes == 2 and len(modes)==2:
             raise ValueError('Use apply_symplectic.')
+        if ordering != self.ordering:
+            raise ValueError('Symplectic not in same ordering as state.')
         
         mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1)) #in xxpp 
         mode_ind = xxpp_to_xpxp(mode_ind) #back to xpxp
@@ -113,10 +116,14 @@ class State:
         bnew = np.einsum("...jk,...k",S,b)
         
         nw = self.num_weights #Number of weights
-        
-        self.covs[np.ix_(np.arange(nw),mode_ind,mode_ind)] = Bnew 
-        self.covs[np.ix_(np.arange(nw),mode_ind_rest, mode_ind)] = ABnew
-        self.covs[np.ix_(np.arange(nw),mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
+        if self.covs.shape[0] != 1:
+            self.covs[np.ix_(np.arange(nw),mode_ind,mode_ind)] = Bnew 
+            self.covs[np.ix_(np.arange(nw),mode_ind_rest, mode_ind)] = ABnew
+            self.covs[np.ix_(np.arange(nw),mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
+        else:
+            self.covs[np.ix_([0],mode_ind,mode_ind)] = Bnew 
+            self.covs[np.ix_([0],mode_ind_rest, mode_ind)] = ABnew
+            self.covs[np.ix_([0],mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
         
         self.means[np.ix_(np.arange(nw),mode_ind)] = bnew
 
@@ -136,9 +143,9 @@ class State:
         #First check that S has the correct dimensions
         if np.shape(S)[0] != int(np.shape(means)[-1]):
             raise ValueError('S must must be 2nmodes x 2nmodes. ')
-
-        if ordering != self.ordering:
-            raise ValueError('Symplectic not in same ordering as data.')
+        #Bug
+        #if ordering != self.ordering:
+            #raise ValueError('Symplectic not in same ordering as state.')
             
         if self.num_covs == 1: 
             new_covs = S @ covs @ S.T
@@ -169,25 +176,26 @@ class State:
     
 
     def apply_loss(self, etas, nbars):
-        """Apply loss to (multimode) state in data
+        """Apply loss to (multimode) state 
 
         To do: add etas and nbars shape check, add case where num covs !=1
     
-        Gaussian state undergo a loss/thermal loss channel in the following way:
+        Gaussian state undergo a attenuation channel in the following way:
             cov = X @ cov @ X.T + Y
             means = X @ means
+
+            where X = sqrt(eta)*I, Y = (1-eta) * hbar / 2 * (2*nbar+1) * I
     
         Args:
-            etas (array): array giving transmittivity of each mode in data
+            etas (array): array giving transmittivity of each mode
             nbars (array): array giving number of photons in environment each mode is coupled to
     
         Returns:
-           updates self.data
+           updates means, covs
         """
         num_modes = self.num_modes
         means = self.means
         cov = self.covs
-        weights = self.weights
 
         if self.ordering == 'xxpp':
             X = np.diag(np.repeat(np.sqrt(etas),2))
@@ -195,6 +203,43 @@ class State:
         elif self.ordering == 'xpxp':
             X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(etas),2)))
             Y = xxpp_to_xpxp(np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 )))
+        
+        means = np.einsum("...jk,...k", X, means)
+        cov = X @ cov @ X.T
+        cov += Y
+        
+        #Update data
+        self.means = means
+        self.covs = cov
+
+    def apply_gain(self, Gs):
+        """Apply gain to (multimode) state
+
+        To do: add etas and nbars shape check, add case where num covs !=1
+    
+        Gaussian state undergo an amplification channel in the following way:
+            cov = X @ cov @ X.T + Y
+            means = X @ means
+
+            X = sqrt(G)*I, Y = (G-1) * hbar / 2 * I
+    
+        Args:
+            Gs (array): array giving the gain in each mode
+
+        Returns:
+            updates means, covs
+           
+        """
+        num_modes = self.num_modes
+        means = self.means
+        cov = self.covs
+
+        if self.ordering == 'xxpp':
+            X = np.diag(np.repeat(np.sqrt(Gs),2))
+            Y = np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 ))
+        elif self.ordering == 'xpxp':
+            X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(Gs),2)))
+            Y = xxpp_to_xpxp(np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 )))
         
         means = np.einsum("...jk,...k", X, means)
         cov = X @ cov @ X.T
@@ -286,17 +331,30 @@ class State:
         self.probability = prob 
         
 
-    def get_wigner(self, x = None, p = None, MP = False):
+    def get_wigner(self, x = None, p = None, indices = None, MP = False):
         """
         Obtain the (single mode) Wigner function on a grid of phase space points
         """
-        if self.num_modes != 1:
-            raise ValueError('State has multiple modes.')
         if x is None:
             x = np.linspace(-10,10,200)
         if p is None:
             p = x
-        else:
+
+        if indices is not None: 
+            sigmaA, sigmaB, sigmaAB = chop_in_blocks_multi(self.covs, indices)
+            
+            muA, muB = chop_in_blocks_vector_multi(self.means, indices)
+           
+            W = 0
+            if len(sigmaA) == 1:
+                for i, mu in enumerate(muA):
+                    W += self.weights[i] * Gauss(sigmaA, mu, x, p, MP)/self.probability
+            else:
+                for i, mu in enumerate(muA):
+                    W += self.weights[i] * Gauss(sigmaA[i], mu, x, p, MP)/self.probability
+        else: 
+            if self.num_modes != 1:
+                raise ValueError('State has multiple modes, please specify indices.')
             W = 0
             if len(self.covs) == 1:
                 for i, mu in enumerate(self.means):
@@ -304,7 +362,7 @@ class State:
             else:
                 for i, mu in enumerate(self.means):
                     W += self.weights[i] * Gauss(self.covs[i], mu, x, p, MP)/self.probability
-            return W
+        return W
 
     def multimode_copy(self, n):
         """Duplicate a single mode state onto n modes.
@@ -344,7 +402,6 @@ class State:
         
         if MP:
             new_weights = np.array([mp.fprod(i) for i in np.array(list(it.product(weights1, weights2)))])
-            print(new_weights.shape)
         else:
             new_weights = np.prod(np.array(list(it.product(weights1, weights2))),axis=1)
         

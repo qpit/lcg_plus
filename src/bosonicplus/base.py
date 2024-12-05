@@ -398,7 +398,11 @@ class State:
         means2, cov2, weights2 = state.means, state.covs, state.weights
         
         #In coherent picture, covariances are the same for every weight
-        new_cov = np.array([block_diag(*list([np.squeeze(cov1),np.squeeze(cov2)]))])
+        if len(cov1) != 1 or len(cov2) != 1:
+            new_cov = np.array([block_diag(*i) for i in list(it.product(cov1,cov2))])
+        else:
+            
+            new_cov = np.array([block_diag(*list([np.squeeze(cov1),np.squeeze(cov2)]))])
         
         if MP:
             new_weights = np.array([mp.fprod(i) for i in np.array(list(it.product(weights1, weights2)))])

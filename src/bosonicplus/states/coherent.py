@@ -39,84 +39,20 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent_fast(N, infid, eps = None):
-    """Generate the Bosonic state data for a Fock state N in the coherent state representation, 
-    where we use the real part of the interferences, reducing the number of Gaussians by around half
-
-    TO DO: write a test of this function in Fock_approximation.py and rewrite 
-    fidelity calculations with the real part
-    
-    Args:
-        N (int): fock number
-        infid (float): infidelity of approximation
-        eps (float): coherent state amplitude, takes presidence over infid if specified.
-        
-    See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
-    """
-
-    cov = 0.5*hbar * np.eye(2)
-    means = []
-    means_re = []
-
-    theta = 2*np.pi/(N+1)
-    weights = []
-    weights_re = []
-    
-    if not eps:
-        eps = eps_fock_coherent(N, infid)
-    
-    for k in np.arange(N+1):
-
-        alpha = eps * np.exp(1j * theta * k) 
-
-        muk, cov, ck = outer_coherent(alpha, alpha)
-        
-        means.append(muk)
-        weights.append(ck)
-
-        for l in np.arange(1,N+1):
-
-            if l > k:
-    
-                beta = eps * np.exp(1j * theta * l)
-    
-                mukl, cov, ckl = outer_coherent(alpha, beta)
-    
-                ckl *= np.exp(-theta * 1j* N*(k-l))
-                
-                means_re.append(mukl)
-                weights_re.append(2*ckl)
-               
-
-    if N == 0:
-        means = []
-        means.append(np.array([0,0]))
-        
-    k = len(weights)
-    weights = np.concatenate([weights, weights_re], axis = 0)
-    means = np.concatenate([means, means_re], axis = 0)
-    
-    
-    factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
-
-    weights *= factor
-
-    weights /= np.sum(weights.real) #renormalize
-    
-    return means, cov, weights, k
-
-
-def gen_fock_coherent(N, infid, eps = None):
+def gen_fock_coherent(N, infid, eps = None, fast = False):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
         N (int): fock number
         infid (float): infidelity of approximation
         eps (float): coherent state amplitude, takes presidence over infid if specified.
-        
+        fast (bool): whether to invoke the fast representation, which uses approx half of the Gaussians
+
     See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
+
+    Returns: 
+        means, covs, weights, +(k if fast == True)
     """
-    
     
     cov = 0.5*hbar * np.eye(2)
     means = []
@@ -124,36 +60,59 @@ def gen_fock_coherent(N, infid, eps = None):
     weights = []
     if not eps:
         eps = eps_fock_coherent(N, infid)
+
+    if fast: 
+        weights_re = []
+        means_re = []
     
     for k in np.arange(N+1):
 
         alpha = eps * np.exp(1j * theta * k) 
 
+        if fast:
+            muk, cov, ck = outer_coherent(alpha, alpha)
+        
+            means.append(muk)
+            weights.append(ck)
+
         for l in np.arange(N+1):
-    
-            beta = eps * np.exp(1j * theta * l)
-
-            mukl, cov, ckl = outer_coherent(alpha, beta)
-
-            ckl *= np.exp(-theta * 1j* N*(k-l))
-            
-            means.append(mukl)
-            weights.append(ckl)
-
+            if fast:
+                if l>k: 
+                    beta = eps * np.exp(1j * theta * l)
+                    mukl, cov, ckl = outer_coherent(alpha, beta)
+                    ckl *= np.exp(-theta * 1j* N*(k-l))
+                    means_re.append(mukl)
+                    weights_re.append(2*ckl)
+            else:
+                beta = eps * np.exp(1j * theta * l)
+                mukl, cov, ckl = outer_coherent(alpha, beta)
+                ckl *= np.exp(-theta * 1j* N*(k-l))
+                means.append(mukl)
+                weights.append(ckl)
+                
     if N == 0:
         means = []
         means.append(np.array([0,0]))
         
-            
-    weights = np.array(weights)
+    if fast:
+        k = len(weights)
+        weights = np.concatenate([weights, weights_re], axis = 0)
+        means = np.concatenate([means, means_re], axis = 0)
+
+    else:
+        weights = np.array(weights)
+        means = np.array(means)
     
     factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
 
     weights *= factor
 
-    weights /= np.sum(weights) #renormalize
-    
-    return np.array(means), cov, weights
+    if fast:
+        weights /= np.sum(weights.real) #renormalize
+        return means, cov, weights, k
+    else:
+        weights /= np.sum(weights)
+        return means, cov, weights
 
 
 def eps_superpos_coherent(N, inf):
@@ -162,7 +121,7 @@ def eps_superpos_coherent(N, inf):
     """
     return (factorial(N+1)*inf)**(1/(2*(N+1)))
 
-def gen_fock_superpos_coherent(coeffs, infid, eps = None):
+def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = False):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
     in the coherent-fock representation.
 
@@ -194,6 +153,10 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None):
     weights = []
     means = []
 
+    if fast: 
+        weights_re = []
+        means_re = []
+
     N = len(coeffs)-1
     
     ck = np.zeros(N+1, dtype = 'complex128')
@@ -202,26 +165,42 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None):
     
     #Obtain new coefficients
     for i in np.arange(N+1):
-        ck[i] = get_ck(i,N,coeffs, eps)
+        ck[i] = get_ck(i, N, coeffs, eps)
         
     theta = 2*np.pi /(N+1) 
 
     for i, cn in enumerate(ck):
         alpha = eps * np.exp(1j * theta * i)
+        if fast: 
+            mui, cov, ci = outer_coherent(alpha, alpha)
+            means.append(mui)
+            weights.append(np.abs(cn)**2 *ci)
         
         for j, cm in enumerate(ck):
-           
-            cm = cm.conjugate()
-            beta = eps * np.exp(1j * theta * j) 
-
-            muij, cov, cij = outer_coherent(alpha, beta)
-
-            weights.append(cn*cm*cij)
-            means.append(muij)
-            
-    weights /= np.sum(weights) #Renormalize
+            if fast:
+                if j > i:
+                    cm = cm.conjugate()
+                    beta = eps * np.exp(1j * theta * j) 
+                    muij, cov, cij = outer_coherent(alpha, beta)
+        
+                    weights_re.append(2*cn*cm*cij)
+                    means_re.append(muij)
+            else:
+                cm = cm.conjugate()
+                beta = eps * np.exp(1j * theta * j) 
+                muij, cov, cij = outer_coherent(alpha, beta)
     
-    return np.array(means), cov, np.array(weights)
+                weights.append(cn*cm*cij)
+                means.append(muij)
+    if fast:
+        k = len(weights)
+        weights = np.concatenate([weights, weights_re], axis = 0)
+        means = np.concatenate([means, means_re], axis = 0)
+        weights /= np.sum(weights.real)
+        return means, cov, weights, k
+    else:
+        weights /=np.sum(weights)
+        return np.array(means), cov, np.array(weights)
 
 def norm_coherent(N, eps):
     """REVISE

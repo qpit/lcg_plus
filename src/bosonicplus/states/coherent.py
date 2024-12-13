@@ -56,10 +56,11 @@ def gen_fock_coherent_fast(N, infid, eps = None):
 
     cov = 0.5*hbar * np.eye(2)
     means = []
+    means_re = []
 
     theta = 2*np.pi/(N+1)
     weights = []
-    
+    weights_re = []
     
     if not eps:
         eps = eps_fock_coherent(N, infid)
@@ -83,14 +84,18 @@ def gen_fock_coherent_fast(N, infid, eps = None):
     
                 ckl *= np.exp(-theta * 1j* N*(k-l))
                 
-                means.append(mukl)
-                weights.append(2*ckl)
+                means_re.append(mukl)
+                weights_re.append(2*ckl)
+               
 
     if N == 0:
         means = []
         means.append(np.array([0,0]))
         
-    weights = np.array(weights)
+    k = len(weights)
+    weights = np.concatenate([weights, weights_re], axis = 0)
+    means = np.concatenate([means, means_re], axis = 0)
+    
     
     factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
 
@@ -98,7 +103,7 @@ def gen_fock_coherent_fast(N, infid, eps = None):
 
     weights /= np.sum(weights.real) #renormalize
     
-    return np.array(means), cov, weights
+    return means, cov, weights, k
 
 
 def gen_fock_coherent(N, infid, eps = None):

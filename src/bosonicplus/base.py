@@ -12,6 +12,8 @@ hbar = 2
 class State:
     """Store the wigner function of a state as a linear combination of Gaussians
     by tracking the means, covs, and weights of the Gaussians
+
+    
     """
     def __init__(self, num_modes = 1):
         """Initialise in vacuum by default
@@ -23,10 +25,11 @@ class State:
         #self.data = [self.means, self.covs, self.weights]
         self.num_weights = len(self.weights)
         self.num_covs = len(self.covs) #Relevant for faster calculations
+        self.num_k = self.num_weights #Relevant when using the reduced no. of gaussians wigner decomp
         self.ordering = 'xpxp'
         self.probability = 1 #For measurements and normalisation
 
-    def update_data(self, new_data : tuple, ordering = 'xpxp'):
+    def update_data(self, new_data : tuple, ordering = 'xpxp', k = None):
         """Insert a custom data tuple, new_data = [means, covs, weights]. 
         This overrides the existing state data completely.
         
@@ -39,12 +42,20 @@ class State:
         self.weights = new_data[2]
         self.num_weights = len(self.weights)
         self.ordering = ordering
-        self.probability = np.sum(self.weights) 
+        
+        
+        if k:
+            self.num_k = k
+            self.probability = np.sum(self.weights.real) 
+        else:
+            self.num_k = self.num_weights
+            self.probability = np.sum(self.weights)
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
             self.covs = np.array([self.covs]) #Quick fix for places where covs is (2,2), not (1,2,2)
         self.num_covs = len(self.covs)
+        
     def get_mean_photons(self):
         """https://github.com/XanaduAI/thewalrus/blob/master/thewalrus/symplectic.py line 354,
         but this only worked for a single mode covariance matrix. Here its adapted to get the

@@ -8,7 +8,7 @@ hbar = 2
 
 # PNRD MEASUREMENT
 # ------------------------------------
-def project_fock_coherent(n, data, mode, inf=1e-4):  
+def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):  
     """Returns data tuple after projecting mode on fock state n (in coherent approx)
     
     Args:
@@ -16,15 +16,18 @@ def project_fock_coherent(n, data, mode, inf=1e-4):
         data (tuple) : [means, covs, weights]
         mode (int): mode index that is measured with PNRD
         inf (float): infidelity of the fock approx
+        k1 (int): number of "normal" gaussians in fock POVM
+        k2 (int): number of "normal" gaussians in state
         
     Returns:
         data_A (tuple): 
         prob (float): probability of the measurement
     """
     means, covs, weights = data
-
-    means_f, sigma_f, weights_f = gen_fock_coherent(n, inf)
-    
+    if k2: 
+        means_f, sigma_f, weights_f, k1 = gen_fock_coherent(n, inf, fast=True)
+    else:
+        means_f, sigma_f, weights_f = gen_fock_coherent(n, inf)
     modes = [mode]
 
     mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1))
@@ -46,26 +49,60 @@ def project_fock_coherent(n, data, mode, inf=1e-4):
     sigma_A_prime = sigma_A - sigma_A_tilde
 
     delta_B = means_f[np.newaxis,:,:] - r_B[:,np.newaxis,:]
+    r_A_prime = r_A[:,np.newaxis,:] + np.einsum("...jk,...k", sigma_ABC, delta_B) 
 
-    r_A_tilde = np.einsum("...jk,...k", sigma_ABC, delta_B)
-    r_A_prime = r_A[:,np.newaxis,:] + r_A_tilde 
-    r_A_prime = r_A_prime.reshape([M*N,L])
-    
     reweights_exp_arg = np.einsum("...j,...jk,...k", delta_B, C_inv[np.newaxis,:,:], delta_B)
     #print('Shape reweights_exp_arg' ,reweights_exp_arg.shape)
 
-    Norm = np.exp(-0.5 * reweights_exp_arg) / (np.sqrt(np.linalg.det( 2* np.pi * C))) 
+    Norm = np.exp(-0.5 * reweights_exp_arg) / (np.sqrt(np.linalg.det( 2* np.pi * C)))
     reweights = weights_f[np.newaxis,:]*weights[:,np.newaxis] * Norm * (2*np.pi*hbar)
-    #Norm  = np.sqrt(np.linalg.det( 2* np.pi * C.reshape([M*N,2,2] )))
-    reweights = reweights.reshape([M*N])
-    prob = np.sum(reweights)
-    
-    #reweights /=  prob
+
+    if k2 and k2>1:
+        
+        delta_B_special = means_f[np.newaxis,k1:] - np.conjugate(r_B[k2:,np.newaxis,:])
+        r_A_prime_special = np.conjugate(r_A[k2:,np.newaxis,:]) + np.einsum("...jk,...k", sigma_ABC, delta_B_special)
+        reweights_exp_arg_special = np.einsum("...j,...jk,...k", delta_B_special, C_inv[np.newaxis,:,:], delta_B_special)
+        Norm_special = np.exp(-0.5 * reweights_exp_arg_special) / (np.sqrt(np.linalg.det( 2* np.pi * C)))
+        reweights_special = weights_f[np.newaxis,k1:]*np.conjugate(weights[k2:,np.newaxis]) * Norm_special * (2*np.pi*hbar)
+
+        #Building the new data tuple with the k1*k2 normal gaussians appearing first
+        
+        w1 = reweights[0:k2,0:k1].flatten()
+        w2 = reweights[0:k2,k1:].flatten()
+        w3 = reweights[k2:,0:k1].flatten()
+        w4 = 0.5*reweights[k2:,k1:].flatten()
+        w5 = 0.5*reweights_special.flatten()
+        
+        reweights = np.concatenate([w1,w2,w3,w4,w5])
+
+        m1 = r_A_prime[0:k2,0:k1,:]
+        m2 = r_A_prime[0:k2,k1:,:]
+        m3 = r_A_prime[k2:,0:k1,:]
+        m4 = r_A_prime[k2:,k1:,:]
+        m5 = r_A_prime_special
+        
+        m1=m1.reshape(-1,m1.shape[-1])
+        m2=m2.reshape(-1,m2.shape[-1])
+        m3=m3.reshape(-1,m3.shape[-1])
+        m4=m4.reshape(-1,m4.shape[-1])
+        m5=m5.reshape(-1,m5.shape[-1])
+        
+        r_A_prime = np.concatenate([m1,m2,m3,m4,m5],axis=0)
+        
+    else:
+        reweights = reweights.reshape([M*N])
+        r_A_prime = r_A_prime.reshape([M*N,L])
+       
 
     data_A = r_A_prime, sigma_A_prime, reweights
 
-   
-    return data_A, prob
+    if k2:
+        prob = np.sum(reweights.real)
+        knew = k1*k2
+        return data_A, prob, knew
+    else:
+        prob=np.sum(reweights)
+        return data_A, prob
 
 
 # PSEUDO PNRD MEASUREMENT

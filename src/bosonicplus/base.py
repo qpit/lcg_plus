@@ -48,6 +48,7 @@ class State:
             self.num_k = k
             self.probability = np.sum(self.weights.real) 
         else:
+            
             self.num_k = self.num_weights
             self.probability = np.sum(self.weights)
         
@@ -260,7 +261,7 @@ class State:
         self.means = means
         self.covs = cov
 
-    def post_select_fock_coherent(self, mode, n, inf = 1e-4, out = False):
+    def post_select_fock_coherent(self, mode, n, inf = 1e-4, red_gauss = None, out = False):
         """Post select on counting n photons in mode. New state has one less mode, so be careful with indexing.
     
         Args: 
@@ -274,8 +275,14 @@ class State:
             self.to_xpxp()
 
         data_in = self.means, self.covs, self.weights
+        
+        if red_gauss:
+            data_out, prob, k = project_fock_coherent(n, data_in, mode, inf, self.num_k)
+            self.update_data(data_out,k=k)
             
-        data_out, prob = project_fock_coherent(n, data_in, mode, inf)
+        else: 
+            data_out, prob = project_fock_coherent(n, data_in, mode, inf)
+            self.update_data(data_out)
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
@@ -283,7 +290,7 @@ class State:
             print('Probability of measurement = {:.3e}'.format(prob))
             print(f'Data shape after measurement, {[i.shape for i in data_out]}')
 
-        self.update_data(data_out)
+        
         self.probability = prob
 
 
@@ -310,6 +317,8 @@ class State:
         """
         if n > M:
             raise ValueError('Number of clicks cannot exceed click detectors.')
+        if self.num_k != self.num_weights:
+            raise ValueError('This measurement is not yet compatible with fast gaussian rep.')
         #Make sure that ordering is xpxp first
         if self.ordering != 'xpxp':
             self.to_xpxp()
@@ -329,6 +338,9 @@ class State:
 
 
     def post_select_homodyne(self, mode, angle, result, MP = False):
+
+        if self.num_k != self.num_weights:
+            raise ValueError('This measurement is not yet compatible with fast gaussian rep.')
 
         #First, rotate the mode by -angle
         S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))

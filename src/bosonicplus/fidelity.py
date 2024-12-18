@@ -101,7 +101,7 @@ def fidelity_bosonic_new(state1, state2):
     fidelity += 0.5*np.sum(weighted_exp[k1:,k2:]).real
     fidelity += 0.5*np.sum(weighted_exp_special).real
     
-    return fidelity/(state1.probability*state2.probability)
+    return fidelity/(state1.norm*state2.norm)
 
 
 

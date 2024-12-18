@@ -7,6 +7,8 @@ import itertools as it
 from scipy.linalg import block_diag
 from mpmath import mp
 
+
+
 hbar = 2
 
 class State:
@@ -27,7 +29,7 @@ class State:
         self.num_covs = len(self.covs) #Relevant for faster calculations
         self.num_k = self.num_weights #Relevant when using the reduced no. of gaussians wigner decomp
         self.ordering = 'xpxp'
-        self.probability = 1 #For measurements and normalisation
+        self.norm = 1 #Normalisation (relevant when doing measurements)
 
     def update_data(self, new_data : tuple, ordering = 'xpxp', k = None):
         """Insert a custom data tuple, new_data = [means, covs, weights]. 
@@ -46,11 +48,11 @@ class State:
         
         if k:
             self.num_k = k
-            self.probability = np.sum(self.weights.real) 
+            self.norm = np.sum(self.weights.real) 
         else:
             
             self.num_k = self.num_weights
-            self.probability = np.sum(self.weights)
+            self.norm = np.sum(self.weights)
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
@@ -70,8 +72,8 @@ class State:
         
         num = self.num_modes
             
-        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*hbar)-1/2*num)/self.probability)
-        var = np.sum(self.weights*((covsq_tr+2*mucov)/(2 * hbar**2) - 1 / 4*num)/self.probability)
+        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*hbar)-1/2*num)/self.norm)
+        var = np.sum(self.weights*((covsq_tr+2*mucov)/(2 * hbar**2) - 1 / 4*num)/self.norm)
         #Variance might not be compatible with the sum-of-gaussians framework
         
         return ex, var
@@ -291,7 +293,7 @@ class State:
             print(f'Data shape after measurement, {[i.shape for i in data_out]}')
 
         
-        self.probability = prob
+        self.norm = prob
 
 
     def post_select_ppnrd_thermal(self, mode, n, M, out =False):
@@ -334,7 +336,7 @@ class State:
             print(f'Data shape after measurement, {[i.shape for i in data_out]}')
             
         self.update_data(data_out)
-        self.probability = prob
+        self.norm = prob
 
 
     def post_select_homodyne(self, mode, angle, result, MP = False):
@@ -350,11 +352,50 @@ class State:
         
         data_out, prob = project_homodyne(data_in, mode, result, MP)
         self.update_data(data_out)
-        #self.probability *= prob  
-        self.probability = prob 
-        
+        self.norm = prob 
 
-    def get_wigner(self, x = None, p = None, indices = None, MP = False):
+    def get_wigner_bosonic(self, xvec, pvec, indices = None):
+        """Adapted from strawberryfields.backends.states for BaseBosonicState
+        """
+
+        if indices is not None: 
+            covs, sigmaB, sigmaAB = chop_in_blocks_multi(self.covs, indices)
+            means, muB = chop_in_blocks_vector_multi(self.means, indices)
+        else:
+            if self.num_modes != 1:
+                raise ValueError('State has multiple modes, please specify indices.')
+            means = self.means
+            covs = self.covs
+            
+        weights = self.weights
+        norm = self.norm
+        
+        
+        X, P = np.meshgrid(xvec, pvec, sparse=True)
+        
+        wigner = 0
+        for i, weight_i in enumerate(weights):
+        
+            if X.shape == P.shape:
+                arr = np.array([X - means[i, 0], P - means[i, 1]])
+                arr = arr.squeeze()
+            else:
+                # need to specify dtype for creating an ndarray from ragged
+                # sequences
+                arr = np.array([X - means[i, 0], P - means[i, 1]], dtype=object)
+
+            if len(covs) ==1:
+                exp_arg = arr @ np.linalg.inv(covs[0]) @ arr
+                prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[0])))
+            else: 
+                exp_arg = arr @ np.linalg.inv(covs[i]) @ arr
+                prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[i])))
+                
+            wigner += (weight_i * prefactor) * np.exp(-0.5 * (exp_arg))
+        return np.real_if_close(wigner/norm)
+        
+    
+    def get_wigner_old(self, x = None, p = None, indices = None, MP = False):
         """
         Obtain the (single mode) Wigner function on a grid of phase space points
         """
@@ -371,20 +412,20 @@ class State:
             W = 0
             if len(sigmaA) == 1:
                 for i, mu in enumerate(muA):
-                    W += self.weights[i] * Gauss(sigmaA, mu, x, p, MP)/self.probability
+                    W += self.weights[i] * Gauss(np.squeeze(sigmaA), mu, x, p, MP)/self.norm
             else:
                 for i, mu in enumerate(muA):
-                    W += self.weights[i] * Gauss(sigmaA[i], mu, x, p, MP)/self.probability
+                    W += self.weights[i] * Gauss(sigmaA[i], mu, x, p, MP)/self.norm
         else: 
             if self.num_modes != 1:
                 raise ValueError('State has multiple modes, please specify indices.')
             W = 0
             if len(self.covs) == 1:
                 for i, mu in enumerate(self.means):
-                    W += self.weights[i] * Gauss(self.covs, mu, x, p, MP)/self.probability
+                    W += self.weights[i] * Gauss(np.squeeze(self.covs), mu, x, p, MP)/self.norm
             else:
                 for i, mu in enumerate(self.means):
-                    W += self.weights[i] * Gauss(self.covs[i], mu, x, p, MP)/self.probability
+                    W += self.weights[i] * Gauss(self.covs[i], mu, x, p, MP)/self.norm
         return W
 
     def multimode_copy(self, n):

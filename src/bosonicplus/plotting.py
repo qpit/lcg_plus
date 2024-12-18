@@ -170,7 +170,7 @@ def plot_wigner_marginals(W, x, p, title, GKP='rect'):
     ax_x.set_ylabel(r'$P(x)$')
     ax_p.set_xlabel(r'$P(p)$')
     ax_p.invert_xaxis()
-    plt.suptitle(title)
+    plt.suptitle(title, fontsize=15)
     fig.tight_layout()
     
     return fig, ax, ax_x, ax_p

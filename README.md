@@ -14,13 +14,13 @@ Simulator of continuous variable circuits with Gaussian components and photon nu
 
 ### Main class
 
-| Class | Description | Attributes | 
-|-------|-------------|------------|
+| Class | Description | Attributes |
+| ---------|-------------|------------|
 | `State(num_modes)` | CV state object (Wigner)  | `means`, `covs`, `weights`, `norm`, `num_k`, `hbar` (not implemented yet) |
 
 
-| Method | Description | Parameters | 
-|--------|-------------|------------|
+| Method | Description | Parameters |
+| ---------|-------------|------------|
 | `update_data(new_data)` | Update the state with new data tuple | `new_data=[means, covs, weights]`  |
 | `apply_symplectic(S)`| Applies a symplectic transform on the state | full `2Nx2N` symplectic matrix `S`|
 | `apply_symplectic_fast(S, modes)` | Applies a symplectic transform on a subset of modes | smaller `2x2` or `4x4` symplectic matrix `S`, list of modes e.g. `modes=[0,1]` for a beamsplitter. Faster than doing the above for large systems. |
@@ -40,10 +40,10 @@ Simulator of continuous variable circuits with Gaussian components and photon nu
 OBS: fidelity functions are probably just overlaps. Should resolve this ASAP. 
 
 Imported from `bosonicplus.fidelity`:
-| Function | Description | Comments | 
+| Function | Description | Comments |
 | ---------|-------------|------------|
-| `fidelity_bosonic(state1,state2)` |  Calculate the quantum fidelity between two states in sum of Gaussians rep assuming one of them is pure.  | This might be actually be the overlap, double check |
-| `fidelity_bosonic_new(state1,state2)` | Same as above, but for the reduced Gaussian formalism | Merge with above|
+|`fidelity_bosonic(state1,state2)`| Calculate the quantum fidelity between two states in sum of Gaussians rep assuming one of them is pure | This might be actually be the overlap, double check|
+|`fidelity_bosonic_new(state1,state2)` | Same as above, but for the reduced Gaussian formalism|Merge with above|
 | `fidelity_with_wigner(W1,W2,xvec,pvec)` | Numerically calculate the overlap of the two Wigner functions, both evaluated in `xvec`, `pvec`. | 
 
 Imported from `bosonicplus.states.nongauss`:

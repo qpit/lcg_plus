@@ -12,6 +12,7 @@ Simulator of continuous variable circuits with Gaussian components and photon nu
 - Non-Gaussian states and measurements are represented as linear combinations of multivariate Gaussians.
 
 ### Main class
+
 | Class | Description | Attributes | 
 |-------|-------------|------------|
 | `State(num_modes)` | CV state object (Wigner)  | `means`, `covs`, `weights`, `norm`, `num_k`, `hbar` (not implemented yet) |
@@ -34,6 +35,7 @@ Simulator of continuous variable circuits with Gaussian components and photon nu
 |`add_state(state)` | Add a single mode state (tensor product) | Another instance of `bosonicplus.base.State` to add to the the current state | 
 
 ### Main functions
+
 OBS: fidelity functions are probably just overlaps. Should resolve this ASAP. 
 
 Imported from `bosonicplus.fidelity`:
@@ -47,7 +49,7 @@ Imported from `bosonicplus.states.nongauss`:
 | Function | Description | Comments |
 | ---------|-------------|------------|
 |`prepare_fock_coherent(n, inf=1e-4)` | Make a Fock state in sum of Gauss rep | Maybe rename, since it sounds like its prepared from a protocol |
-| `prepare_sqz_cat_coherent(r, alpha ,k, MP =False)` | Make a squeezed cat, with possibility of increasing the precision of the weights with `mpmath`, because there is an issue with high `r` and `alpha` |  Same as above
+| `prepare_sqz_cat_coherent(r, alpha, k, MP =False)` | Make a squeezed cat, with possibility of increasing the precision of the weights with `mpmath`, because there is an issue with high `r` and `alpha` |  Same as above
 | `prepare_gkp_coherent(n, which, N, inf = 1e-4)` | Make a `n` fock approx to a GKP state with GKP squeezing operator (Petr Marek paper) in linear comb of Gaussians rep | Same as above. See `bosonicplus.state.gkp_squeezing.py`
 
 

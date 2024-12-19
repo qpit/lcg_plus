@@ -206,37 +206,52 @@ def project_homodyne(data, mode, result, MP = False):
     sigma_A, sigma_AB, sigma_B = chop_in_blocks_multi(covs, mode_ind)
     r_A, r_B = chop_in_blocks_vector_multi(means, mode_ind)
 
-    sigma_A = sigma_A[0]
-    sigma_B = sigma_B[0]
-    sigma_AB = sigma_AB[0]
+    if len(covs) == 1:
+        sigma_A = sigma_A[0]
+        sigma_B = sigma_B[0]
+        sigma_AB = sigma_AB[0]
 
-    #Top left entry of sigma_B: 
-    sigma_B = sigma_B[0:1,0:1][0]
-    sigma_A_prime = sigma_A - (sigma_B)**(-1)*sigma_AB @ P @ sigma_AB.T
+        #Top left entry of sigma_B: 
+        sigma_B = sigma_B[0:1,0:1][0]
+        sigma_A_prime = sigma_A - (sigma_B)**(-1)*sigma_AB @ P @ sigma_AB.T
 
-    delta_B = u[np.newaxis,:] - r_B
+        delta_B = u[np.newaxis,:] - r_B
 
-    r_A_tilde = np.einsum("...jk,...k", sigma_AB @ P, delta_B)
-    r_A_prime = r_A + sigma_B**(-1)* r_A_tilde 
+        r_A_prime = r_A + sigma_B**(-1)* np.einsum("...jk,...k", sigma_AB @ P, delta_B)
+        reweights_exp_arg = (sigma_B**(-1)*(result - r_B[:,0])**2).reshape(len(weights))
+
+        Norm = np.sqrt(2*np.pi*sigma_B)
+    else:
+        #Top left entry of sigma_B: 
+        sigma_B = sigma_B[:,0:1,0:1]
+        sigma_B_inv = (sigma_B)**(-1)
+        print(sigma_B_inv.shape)
     
-    reweights_exp_arg = (sigma_B**(-1)*(result - r_B[:,0])**2).reshape(len(weights))
+        sigma_A_prime = sigma_A - (sigma_B_inv)*sigma_AB @ P[np.newaxis,:,:] @ np.transpose(
+            sigma_AB,axes=[0,2,1])
+
+        delta_B = u[np.newaxis,:] - r_B
+
+        r_A_prime = r_A + sigma_B_inv[:,0,0] @ np.einsum("...jk,...k", sigma_AB @ P[np.newaxis,:,:], delta_B)
+        reweights_exp_arg = sigma_B_inv[:,0,0]*(result - r_B[:,0])**2
+        Norm = np.sqrt(2*np.pi*sigma_B[:,0,0])
     
+        
     if MP: 
         reweights_exp = np.array([mp.exp(-0.5*i) for i in reweights_exp_arg])
     else:
         reweights_exp = np.exp(-0.5*reweights_exp_arg)
-
-    Norm = reweights_exp / np.sqrt(2*np.pi*sigma_B)
-    reweights = weights * Norm #mp?
+    
+    reweights = weights*reweights_exp/ Norm #mp?
     
     if MP:
         prob = mp.fdot(weights, Norm )
     else:
         prob = np.sum(reweights)
-    
-    data_A = r_A_prime, sigma_A_prime[np.newaxis,:], reweights
-    #/prob
+
+    data_A = r_A_prime, sigma_A_prime, reweights
     
     return data_A, prob
+
 
     

@@ -5,7 +5,7 @@ hbar = 2
 
 def fidelity_bosonic(state1, state2, MP = False):
     """Calculate fidelity between two states in sum-of-gaussian representation, assuming one of them is pure
-    If state1 == state2, return the purity.
+    If state1 == state2, return the purity. Overlap
     
     Args:
         state1
@@ -27,12 +27,7 @@ def fidelity_bosonic(state1, state2, MP = False):
     if MP:
         norm1 = mp.fsum(weights1)
         norm2 = mp.fsum(weights2)
-    else:
-        norm1 = np.sum(weights1)
-        norm2 = np.sum(weights2)
 
-    
-    
     deltas = state1.means[:,np.newaxis,:] - state2.means[np.newaxis,:,:]
 
     if state1.num_covs == 1 or state2.num_covs == 1:
@@ -46,7 +41,7 @@ def fidelity_bosonic(state1, state2, MP = False):
     weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                * np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
                
-    fidelity = np.sum(weighted_exp)/(norm1*norm2)
+    fidelity = np.sum(weighted_exp)/(state1.norm*state2.norm2)
     
     return fidelity
     

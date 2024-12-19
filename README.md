@@ -1,4 +1,5 @@
 # bosonicplus
+
 Simulator of continuous variable circuits with Gaussian components and photon number resolving detectors. This is an extension of the [bosonic backend](https://strawberryfields.ai/photonics/demos/run_intro_bosonic.html) from strawberryfields with significantly improved photon number resolving detector capabilities.
 
 ## Requirements
@@ -22,13 +23,13 @@ Simulator of continuous variable circuits with Gaussian components and photon nu
 |--------|-------------|------------|
 | `update_data(new_data)` | Update the state with new data tuple | `new_data=[means, covs, weights]`  |
 | `apply_symplectic(S)`| Applies a symplectic transform on the state | full `2Nx2N` symplectic matrix `S`|
-| `apply_symplectic_fast(S, modes)` | Applies a symplectic transform on a subset of modes | smaller `2x2` or `4x4` symplectic matrix `S`, list of modes e.g. `modes=[0,1]` for a beamsplitter. Fa |
-|`apply_displacement(d)`| Applies a displacement | `2Nx1` displacement vector, e.g. for a single mode `d=np.sqrt(2*hbar)*[alpha.real, alpha.imag]`
+| `apply_symplectic_fast(S, modes)` | Applies a symplectic transform on a subset of modes | smaller `2x2` or `4x4` symplectic matrix `S`, list of modes e.g. `modes=[0,1]` for a beamsplitter. Faster than doing the above for large systems. |
+|`apply_displacement(d)`| Applies a displacement | `2Nx1` displacement vector, e.g. for a single mode `d=np.sqrt(2*hbar)*[alpha.real, alpha.imag]` |
 | `apply_loss(etas, nbars)` | Applies a multimode (thermal) loss channel |  transmissivities `etas`, thermal occupation numbers `nbars` |
-| `post_select_fock_coherent(mode, n, inf=1e-4,red_gauss=True)` | Project a mode onto a fock state in the sum of gaussian representaion | mode number `mode`, photon number `n`, infidelity of the approximation `inf`, reduce the number of Gaussians with `red_gauss`. 
+| `post_select_fock_coherent(mode, n, inf=1e-4,red_gauss=True)` | Project a mode onto a fock state in the sum of gaussian representaion | mode number `mode`, photon number `n`, infidelity of the approximation `inf`, reduce the number of Gaussians with `red_gauss`. |
 | `post_select_ppnrd_thermal(mode, n, M)` | Project a mode onto a pseudo-photon number detector (pPNRD) in sum of thermal state representation | mode number `mode`, click number `n`, number of on/off detectors in pPNRD `M` | 
 | `post_select_homodyne(mode, angle, result, MP = False)` | Project a mode into a rotated position eigenstate | mode number `mode`, angle of quadrature `angle`, result of measurement `result`. For breeding of squeezed cats, higher precision may be required, so we can set `MP=True` to use `mpmath`|  
-| `post_select_heterodyne(mode, alpha)` | Project a mode onto a coherent state | Not implemented | 
+| `post_select_heterodyne(mode, alpha)` | Project a mode onto a coherent state | Not implemented| 
 | `post_select_generaldyne(mode, r, alpha)`| Project a mode onto a squeezed coherent state | Not implemented |
 |`get_wigner_bosonic(xvec,pvec,indices=None)`| Get the Wigner function of a single mode state, or the multivariate Wigner function over the specified indices | `xvec`, `pvec` |
 | `multimode_copy(n)` | Copy a single mode state to `n` modes (tensor product) | |
@@ -50,7 +51,7 @@ Imported from `bosonicplus.states.nongauss`:
 | ---------|-------------|------------|
 |`prepare_fock_coherent(n, inf=1e-4)` | Make a Fock state in sum of Gauss rep | Maybe rename, since it sounds like its prepared from a protocol |
 | `prepare_sqz_cat_coherent(r, alpha, k, MP =False)` | Make a squeezed cat, with possibility of increasing the precision of the weights with `mpmath`, because there is an issue with high `r` and `alpha` |  Same as above
-| `prepare_gkp_coherent(n, which, N, inf = 1e-4)` | Make a `n` fock approx to a GKP state with GKP squeezing operator (Petr Marek paper) in linear comb of Gaussians rep | Same as above. See `bosonicplus.state.gkp_squeezing.py`
+| `prepare_gkp_coherent(n, which, N, inf = 1e-4)` | Make a `n` fock approx to a GKP state with GKP squeezing operator (Petr Marek paper) in linear comb of Gaussians rep | Same as above. See `bosonicplus.state.gkp_squeezing.py` |
 
 
 Imported from `bosonicplus.states.coherent`:

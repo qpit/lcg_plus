@@ -1,6 +1,6 @@
 [project]
 name = "bosonicplus"
-version = "2024.11.20"
+version = "2024.12.19"
 description = "Gaussian and non-Gaussian continuous-variable quantum optics simulations."
 authors = [{name = "Olga Solodovnikova", email = "olgasol@dtu.dk"}]
 dependencies = [

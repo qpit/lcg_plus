@@ -41,7 +41,7 @@ def fidelity_bosonic(state1, state2, MP = False):
     weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                * np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
                
-    fidelity = np.sum(weighted_exp)/(state1.norm*state2.norm2)
+    fidelity = np.sum(weighted_exp)/(state1.norm*state2.norm)
     
     return fidelity
     

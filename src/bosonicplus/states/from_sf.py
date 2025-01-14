@@ -3,6 +3,7 @@ import itertools as it
 
 from mpmath import mp
 from scipy.special import comb
+from math import fsum
 from bosonicplus.base import State
 
 hbar = 2
@@ -176,12 +177,12 @@ def prepare_fock_bosonic(n, r=0.05):
             (1 - n * (r**2)) / (1 - (n - j) * (r**2)) * comb(n, j) * parity(j)
             for j in range(n + 1)
         ],
-        dtype=complex,
     )
-    weights /= np.sum(weights)
+    #weights /= np.sum(weights)
 
     state = State(1)
     state.update_data([means, covs, weights])
+    state.norm = np.sum(weights)
 
     return state
 

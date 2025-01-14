@@ -94,7 +94,7 @@ def gkp_operator_coherent(cutoff, which, eps):
             
     return np.array(means), np.array(cov), np.array(weights) #Don't normalise! Operator Q is not supposed to be normalised
 
-def gen_gkp_coherent(n, which, N = 1,inf = 1e-4):
+def gen_gkp_coherent(n, which, N = 1,inf = 1e-4, fast=False):
     """
     Returns state data for 
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
@@ -109,7 +109,7 @@ def gen_gkp_coherent(n, which, N = 1,inf = 1e-4):
     w, v = np.linalg.eigh(rho)
     
     coeffs = v[:,0] #eigs always sorted from lowest to highest eigenvalue, choose lowest
-    data_gkp = gen_fock_superpos_coherent(coeffs, inf)
+    data_gkp = gen_fock_superpos_coherent(coeffs, inf,fast=fast)
     
     return data_gkp
 

@@ -5,9 +5,9 @@ from .coherent import gen_fock_coherent, gen_sqz_cat_coherent
 from .gkp_squeezing import gen_gkp_coherent
 hbar = 2
 
-def prepare_fock_coherent(n, inf=1e-4, epsilon = None):
+def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = False):
     """Prepare Fock state in coherent state approx"""
-    data = gen_fock_coherent(n, inf,epsilon)
+    data = gen_fock_coherent(n, inf,epsilon, fast)
     fock = State(1)
     fock.update_data(data)
     return fock
@@ -28,7 +28,7 @@ def prepare_sqz_cat_coherent(r, alpha, k, MP =False):
     sq_cat.update_data(data)
     return sq_cat
 
-def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4):
+def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4,fast=False):
     """
     Returns State obj 
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
@@ -38,7 +38,7 @@ def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4):
         N: scaling of the grid
         inf: (in)fidelity of the coherent state approximation
     """
-    data_gkp = gen_gkp_coherent(n,which,N,inf)
+    data_gkp = gen_gkp_coherent(n,which,N,inf,fast)
     state = State(1)
     state.update_data(data_gkp)
     

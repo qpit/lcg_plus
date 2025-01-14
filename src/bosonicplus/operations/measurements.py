@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import comb
-from bosonicplus.states.coherent import gen_fock_coherent
+from bosonicplus.states.coherent import gen_fock_coherent, gen_fock_bosonic
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 from mpmath import mp
 hbar = 2
@@ -92,15 +92,14 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     else:
         reweights = reweights.reshape([M*N])
         r_A_prime = r_A_prime.reshape([M*N,L])
-       
-
-    data_A = r_A_prime, sigma_A_prime, reweights
+    
 
     if k2:
+        data_A = r_A_prime, sigma_A_prime, reweights, k1*k2
         prob = np.sum(reweights.real)
-        knew = k1*k2
-        return data_A, prob, knew
+        return data_A, prob
     else:
+        data_A = r_A_prime, sigma_A_prime, reweights
         prob=np.sum(reweights)
         return data_A, prob
 
@@ -158,6 +157,9 @@ def project_ppnrd_thermal(data, mode, n, M):
     # pPNRD PNRD POVM with thermal states
     mu_povm, sigma_povm, weights_povm = ppnrd_povm_thermal(n, M)    
 
+    #print(mu_povm.shape)
+    #print(r_A.shape)
+
     # New data sizes
     M = len(mu_povm)
     N = len(sigma_A)
@@ -168,6 +170,7 @@ def project_ppnrd_thermal(data, mode, n, M):
     C_inv = np.linalg.inv(C)
 
     r_A_tilde = np.einsum("...jk,...kl,...l", sigma_AB[:,np.newaxis,:,:], C_inv, r_B[:,np.newaxis,:]) #OBS: mu_povm are zero
+    #print(r_A_tilde.shape)
     r_A_prime = (r_A[:,np.newaxis,:] - r_A_tilde )
     r_A_prime = r_A_prime.reshape([M*N,L])
     
@@ -186,6 +189,47 @@ def project_ppnrd_thermal(data, mode, n, M):
     data_A = r_A_prime, sigma_A_prime, new_weights
     
     return data_A, prob 
+
+def project_fock_thermal(data, mode, n ,r = 0.05):
+    means, covs, weights = data
+    
+    modes = [mode]
+    mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1))
+
+    sigma_A, sigma_AB, sigma_B = chop_in_blocks_multi(covs, mode_ind)
+    r_A, r_B = chop_in_blocks_vector_multi(means, mode_ind)
+
+    # Fock state with thermal states
+    mu_povm, sigma_povm, weights_povm = gen_fock_bosonic(n, r)
+   
+    # New data sizes
+    M = len(mu_povm)
+    N = len(sigma_A)
+    L = len(r_A[0,:])
+
+    # Use broadcasting to add arrays of different sizes
+    C = (sigma_B[:,np.newaxis,:,:]+sigma_povm[np.newaxis,:,:,:])
+    C_inv = np.linalg.inv(C)
+
+    r_A_tilde = np.einsum("...jk,...kl,...l", sigma_AB[:,np.newaxis,:,:], C_inv, r_B[:,np.newaxis,:]) #OBS: mu_povm are zero
+    #print(r_A_tilde.shape)
+    r_A_prime = (r_A[:,np.newaxis,:] - r_A_tilde )
+    r_A_prime = r_A_prime.reshape([M*N,L])
+    
+    sigma_A_tilde = np.einsum("...jk,...kl,...lm",sigma_AB[:,np.newaxis,:,:], C_inv, sigma_AB.transpose(0,2,1)[:,np.newaxis,:,:] )
+    sigma_A_prime = (sigma_A[:,np.newaxis,:,:] - sigma_A_tilde)
+    sigma_A_prime = sigma_A_prime.reshape([M*N,L,L])
+
+    reweights_exp_arg = np.einsum("...j,...jk,...k", -r_B[:,np.newaxis,:], C_inv, -r_B[:,np.newaxis,:]) #OBS: mu_povm are zero
+    Norm = (2*np.pi*hbar) * np.exp(-0.5 * reweights_exp_arg) / (np.sqrt(np.linalg.det( 2* np.pi * C))) 
+    new_weights = weights_povm[np.newaxis,:]*weights[:,np.newaxis] * Norm 
+    new_weights = new_weights.reshape([M*N])
+
+    prob = np.sum(new_weights)
+    #new_weights /=  prob
+
+    data_A = r_A_prime, sigma_A_prime, new_weights
+    return data_A, prob
 
 
 # Homodyne measurement

@@ -8,6 +8,7 @@
 import numpy as np
 from math import factorial
 from mpmath import mp, fp 
+from scipy.special import comb
 #from bosonicplus.base import State
 hbar = 2
 
@@ -363,6 +364,49 @@ def gen_sqz_cat_coherent(r, alpha, k, MP = False):
     return np.array(means), cov, weights
 
 
+def gen_fock_bosonic(n, r=0.05):
+    """
+    Prepares the arrays of weights, means and covs of a Fock state.
+    Normalisation becomes zero for n > 6 giving nan in the weights
 
+    Copied from strawberryfields bosonicbackend, modified here.
+
+    Args:
+        n (int): photon number
+        r (float): quality parameter for the approximation
+
+    Returns:
+        fock (BaseBosonicState): Fock state object
+
+    Raises:
+        ValueError: if :math:`1/r^2` is less than :math:`n`
+    """
+    if 1 / r**2 < n:
+        raise ValueError(f"The parameter 1 / r ** 2={1 / r ** 2} is smaller than n={n}")
+    # A simple function to calculate the parity
+    parity = lambda n: 1 if n % 2 == 0 else -1
+    # All the means are zero
+    means = np.zeros([n + 1, 2])
+    covs = np.array(
+        [
+            #0.5
+            1
+            #* sf.hbar
+            * np.identity(2)
+            * (1 + (n - j) * r**2)
+            / (1 - (n - j) * r**2)
+            for j in range(n + 1)
+        ]
+    )
+    weights = np.array(
+        [
+            (1 - n * (r**2)) / (1 - (n - j) * (r**2)) * comb(n, j) * parity(j)
+            for j in range(n + 1)
+        ],
+    )
+    #weights /= np.sum(weights)
+
+
+    return means, covs, weights
 
 

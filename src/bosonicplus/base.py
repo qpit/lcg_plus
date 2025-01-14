@@ -1,11 +1,12 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
-from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne
+from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal
 from bosonicplus.states.wigner import Gauss
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
 from mpmath import mp
+from math import fsum
 
 
 
@@ -31,7 +32,7 @@ class State:
         self.ordering = 'xpxp'
         self.norm = 1 #Normalisation (relevant when doing measurements)
 
-    def update_data(self, new_data : tuple, ordering = 'xpxp', k = None):
+    def update_data(self, new_data : tuple, ordering = 'xpxp'):
         """Insert a custom data tuple, new_data = [means, covs, weights]. 
         This overrides the existing state data completely.
         
@@ -42,21 +43,31 @@ class State:
         self.means = new_data[0]
         self.covs = new_data[1]
         self.weights = new_data[2]
+
         self.num_weights = len(self.weights)
         self.ordering = ordering
         
-        
-        if k:
+        if len(new_data) == 4:
+            k = new_data[3]
             self.num_k = k
             self.norm = np.sum(self.weights.real) 
         else:
-            
             self.num_k = self.num_weights
             self.norm = np.sum(self.weights)
+            
+        
+        
+        #if k:
+         #   self.num_k = k
+          #  self.norm = np.sum(self.weights.real) 
+        #else:
+            
+         #   self.num_k = self.num_weights
+          #  self.norm = np.sum(self.weights)
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
-            self.covs = np.array([self.covs]) #Quick fix for places where covs is (2,2), not (1,2,2)
+            self.covs = np.array([self.covs]) #Quick fix for places where covs is shape (2,2), not (1,2,2)
         self.num_covs = len(self.covs)
         
     def get_mean_photons(self):
@@ -279,12 +290,13 @@ class State:
         data_in = self.means, self.covs, self.weights
         
         if red_gauss:
-            data_out, prob, k = project_fock_coherent(n, data_in, mode, inf, self.num_k)
-            self.update_data(data_out,k=k)
+            data_out, prob = project_fock_coherent(n, data_in, mode, inf, self.num_k)
+            #self.update_data(data_out)
             
         else: 
             data_out, prob = project_fock_coherent(n, data_in, mode, inf)
-            self.update_data(data_out)
+        
+        self.update_data(data_out)
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
@@ -294,6 +306,27 @@ class State:
 
         
         self.norm = prob
+
+    def post_select_fock_thermal(self, mode, n, r =0.05, out = False):
+        #Make sure that ordering is xpxp first
+        if self.ordering != 'xpxp':
+            self.to_xpxp()
+
+        data_in = self.means, self.covs, self.weights
+            
+    
+        data_out, prob = project_fock_thermal(data_in, mode, n, r)
+        self.update_data(data_out)
+    
+        if out:
+            print(f'Measuring {n} photons in mode {mode}.')
+            print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
+            print('Probability of measurement = {:.3e}'.format(prob))
+            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+
+        
+        self.norm = prob
+        
 
 
     def post_select_ppnrd_thermal(self, mode, n, M, out =False):
@@ -460,6 +493,9 @@ class State:
         
         means1, cov1, weights1 = self.means, self.covs, self.weights
         means2, cov2, weights2 = state.means, state.covs, state.weights
+
+        k1 = self.num_k
+        k2 = state.num_k
         
         #In coherent picture, covariances are the same for every weight
         if len(cov1) != 1 or len(cov2) != 1:
@@ -474,7 +510,12 @@ class State:
             new_weights = np.prod(np.array(list(it.product(weights1, weights2))),axis=1)
         
         K = len(new_weights)
-        new_means = np.array(list(it.product(means1,means2))).reshape((K,2*(N+M)))
+        
+        #Hack to fix list of list problem
+        new_means = list(it.product(means1,means2))
+        new_means = np.array([np.concatenate(i) for i in new_means])
+        
+        #new_means = np.array(list(it.product(means1,means2))).reshape((K,2*(N+M)))
         
         data_new = new_means, new_cov, new_weights
         

@@ -392,8 +392,8 @@ class State:
         """
 
         if indices is not None: 
-            covs, sigmaB, sigmaAB = chop_in_blocks_multi(self.covs, indices)
-            means, muB = chop_in_blocks_vector_multi(self.means, indices)
+            sigmaA, sigmaAB, covs = chop_in_blocks_multi(self.covs, indices)
+            muA, means = chop_in_blocks_vector_multi(self.means, indices)
         else:
             if self.num_modes != 1:
                 raise ValueError('State has multiple modes, please specify indices.')

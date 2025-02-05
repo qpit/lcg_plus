@@ -5,6 +5,129 @@ import numpy as np
 from mpmath import mp, fp
 hbar = 2
 
+
+
+def plot_wig(W, q1, q2, colorbar = True, xlabel = None, ylabel = None, GKP = False):
+    ax_ = plt.gca()
+    W = np.round(W.real, 4)
+    scale = np.max(W.real)
+    nrm = mpl.colors.Normalize(-scale, scale)
+    if GKP:
+        im = plt.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        plt.xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+        plt.ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+        plt.grid('on')
+    else:
+        
+        im = plt.contourf(q1, q2, W, 100, cmap=cm.RdBu, norm = nrm)
+        
+        #im = plt.imshow(q1, q2, W, 100, cmap='RdBu', norm = nrm)
+        
+        if xlabel is not None:
+            plt.xlabel(xlabel, fontsize=12)
+            plt.ylabel(ylabel, fontsize=12)
+        else:
+            plt.xlabel(r'$x$', fontsize=12)
+            plt.ylabel(r'$p$', fontsize=12)
+    
+    #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+    #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+    
+    if colorbar:
+        plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax=ax_, shrink = 0.82)
+    #ax_.set_rasterized(True)
+    #ax_.set_rasterization_zorder(0)
+    ax_.set_aspect("equal")
+    
+    return im
+
+
+
+def plot_wigner_marginals(W, x, p, title=None, GKP='rect', fontsize=12 ):
+    ## To do: add colorbar
+    # Start with a square Figure.
+    fig = plt.figure(figsize=(4,4))
+    fs = fontsize
+    
+    # Add a gridspec with two rows and two columns and a ratio of 1 to 4 between
+    # the size of the marginal Axes and the main Axes in both directions.
+    # Also adjust the subplot parameters for a square plot.
+    gs = fig.add_gridspec(2,2,  width_ratios=(1,4), height_ratios=(1,4),
+                          left=0.1, right=0.9, bottom=0.1, top=0.9,
+                          wspace=0.1, hspace=0.1)
+    # Create the Axes.
+    ax = fig.add_subplot(gs[1, 1])
+    ax_x = fig.add_subplot(gs[0, 1], sharex = ax)
+    ax_p = fig.add_subplot(gs[1, 0], sharey = ax)
+    
+    marginal_x = np.sum(W,axis=0)*np.diff(p)[0]
+    marginal_y = np.sum(W,axis=1)*np.diff(x)[0]
+
+    W = np.round(W.real, 4)
+    scale = np.max(W.real)
+    nrm = mpl.colors.Normalize(-scale, scale)
+
+    if GKP == 'rect':
+        grid = np.sqrt(hbar*np.pi)
+        ax.contourf(x /grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
+        ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=fs)
+        #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+        ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=fs)
+        ax.grid('on')
+    elif GKP =='square':
+        grid = np.sqrt(hbar*np.pi/2)
+        ax.contourf(x/grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
+        ax.set_xlabel(r"$x(\sqrt{\hbar\pi/2})^{-1}$", fontsize=fs)
+        #ax.set_ylabel(r"$p(\sqrt{\hbar\pi/2})^{-1}$", fontsize=12)
+        ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi/2})^{-1}$", fontsize=fs)
+        ax.grid('on')
+    else:
+        ax.contourf(x, p, W, 200, cmap=cm.RdBu, norm = nrm)
+        #ax.imshow([x,p,W], cmap='RdBu', norm = nrm)
+        grid = 1
+        ax.set_xlabel(r"$x$", fontsize=fs)
+        ax_p.set_ylabel(r"$p$", fontsize=fs)
+        ax.grid('on')
+
+    ax.set_aspect("equal")
+    #ax.set_rasterized(True)
+    
+    ax_x.plot(x/grid, marginal_x)
+    ax_p.plot(marginal_y, x/grid)
+    
+    ax_x.tick_params(axis = 'x',labelbottom = False)
+    ax.tick_params(axis = 'y', labelleft=False)
+    ax_x.grid('on')
+    ax_p.grid('on')
+    ax_x.set_ylabel(r'$P(x)$')
+    ax_p.set_xlabel(r'$P(p)$')
+    ax_p.invert_xaxis()
+    plt.suptitle(title, fontsize=fs)
+    fig.tight_layout()
+    
+    return fig, ax, ax_x, ax_p
+
+def make_joint_distribution_plot(state, x):
+    if state.num_modes != 2: 
+        raise ValueError('incompatible when number of modes != 2')
+    ax1 = plt.subplot2grid((2,2), (0,0))
+    ax2 = plt.subplot2grid((2,2), (0,1))
+    ax3 = plt.subplot2grid((2,2), (1,0))
+    ax4 = plt.subplot2grid((2,2), (1,1))
+
+    for ax_, idx_, xlab_, ylab_ in [(ax1, [0,1],r'$x_1$',r'$p_1$'), 
+                              (ax2,[0,2],r'$x_1$',r'$x_2$'),
+                              (ax3,[1,3],r'$p_1$',r'$p_2$'),
+                              (ax4,[2,3],r'$x_2$',r'$p_2$')]:
+        plt.sca(ax_)
+        W = state.get_wigner_bosonic(x,x, idx_)
+        im = plot_wig(W, x,x,colorbar=False, xlabel=xlab_, ylabel=ylab_)
+
+    plt.tight_layout()
+    
+
+
+
 def Gauss(sigma, mu, x, p, MP = False):
     """
     Returns the Gaussian in phase space point (x,p), or on a grid
@@ -45,36 +168,6 @@ def Gauss(sigma, mu, x, p, MP = False):
         return G_mp
     else: 
         return Norm * np.exp(exparg)
-
-def plot_wig(ax, W, q1, q2, colorbar = True, xlabel = None, ylabel = None, GKP = False):
-    
-    W = np.round(W.real, 4)
-    scale = np.max(W.real)
-    nrm = mpl.colors.Normalize(-scale, scale)
-    if GKP:
-        im = ax.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
-        ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-        ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-        ax.grid('on')
-    else:
-        im = ax.contourf(q1, q2, W, 100, cmap=cm.RdBu, norm = nrm)
-        if xlabel is not None:
-            ax.set_xlabel(xlabel, fontsize=12)
-            ax.set_ylabel(ylabel, fontsize=12)
-        else:
-            ax.set_xlabel(r'$x$', fontsize=12)
-            ax.set_ylabel(r'$p$', fontsize=12)
-    
-    #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-    #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-    
-    if colorbar:
-        plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax = ax, shrink = 0.82)
-    
-    ax.set_aspect("equal")
-    return im
-
-
 def get_wigner_coherent_comb(data, x, p, MP = False):
     means, cov, weights  = data
     W = 0
@@ -114,66 +207,6 @@ def plot_wigner_coherent_comb(ax, data, xvec, pvec, colorbar = True, GKP = False
         plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax = ax, shrink = 0.82)
     
     ax.set_aspect("equal")
-
-def plot_wigner_marginals(W, x, p, title, GKP='rect'):
-    ## To do: add colorbar
-    # Start with a square Figure.
-    fig = plt.figure(figsize=(6,6))
-    # Add a gridspec with two rows and two columns and a ratio of 1 to 4 between
-    # the size of the marginal Axes and the main Axes in both directions.
-    # Also adjust the subplot parameters for a square plot.
-    gs = fig.add_gridspec(2,2,  width_ratios=(1,4), height_ratios=(1,4),
-                          left=0.1, right=0.9, bottom=0.1, top=0.9,
-                          wspace=0.1, hspace=0.1)
-    # Create the Axes.
-    ax = fig.add_subplot(gs[1, 1])
-    ax_x = fig.add_subplot(gs[0, 1], sharex = ax)
-    ax_p = fig.add_subplot(gs[1, 0], sharey = ax)
-    
-    marginal_x = np.sum(W,axis=0)*np.diff(p)[0]
-    marginal_y = np.sum(W,axis=1)*np.diff(x)[0]
-
-    W = np.round(W.real, 4)
-    scale = np.max(W.real)
-    nrm = mpl.colors.Normalize(-scale, scale)
-
-    if GKP == 'rect':
-        grid = np.sqrt(hbar*np.pi)
-        ax.contourf(x /grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
-        ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=15)
-        #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-        ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=15)
-        ax.grid('on')
-    elif GKP =='square':
-        grid = np.sqrt(hbar*np.pi/2)
-        ax.contourf(x/grid, p/grid, W, 100, cmap=cm.RdBu, norm = nrm)
-        ax.set_xlabel(r"$x(\sqrt{\hbar\pi/2})^{-1}$", fontsize=15)
-        #ax.set_ylabel(r"$p(\sqrt{\hbar\pi/2})^{-1}$", fontsize=12)
-        ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi/2})^{-1}$", fontsize=15)
-        ax.grid('on')
-    else:
-        ax.contourf(x, p, W, 100, cmap=cm.RdBu, norm = nrm)
-        grid = 1
-        ax.set_xlabel(r"$x$", fontsize=15)
-        ax_p.set_ylabel(r"$p$", fontsize=15)
-
-    ax.set_aspect("equal")
-
-    
-    ax_x.plot(x/grid, marginal_x)
-    ax_p.plot(marginal_y, x/grid)
-    
-    ax_x.tick_params(axis = 'x',labelbottom = False)
-    ax.tick_params(axis = 'y', labelleft=False)
-    ax_x.grid('on')
-    ax_p.grid('on')
-    ax_x.set_ylabel(r'$P(x)$')
-    ax_p.set_xlabel(r'$P(p)$')
-    ax_p.invert_xaxis()
-    plt.suptitle(title, fontsize=15)
-    fig.tight_layout()
-    
-    return fig, ax, ax_x, ax_p
 
 
 def plot_marginal(ax, W, x, p, title, which = 'x', GKP = 'rect', ls='solid', lw=1,lab=None):

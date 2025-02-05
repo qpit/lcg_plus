@@ -33,11 +33,10 @@ class State:
         self.norm = 1 #Normalisation (relevant when doing measurements)
 
     def update_data(self, new_data : tuple, ordering = 'xpxp'):
-        """Insert a custom data tuple, new_data = [means, covs, weights]. 
+        """Insert a custom data tuple, new_data = [means, covs, weights, k]. 
         This overrides the existing state data completely.
         
         To do: what if new_data is in a different ordering?
-        To do: fix weird weight change by writing separate update covs and update means methods
         """
         #self.data = new_data
         self.means = new_data[0]
@@ -54,16 +53,6 @@ class State:
         else:
             self.num_k = self.num_weights
             self.norm = np.sum(self.weights)
-            
-        
-        
-        #if k:
-         #   self.num_k = k
-          #  self.norm = np.sum(self.weights.real) 
-        #else:
-            
-         #   self.num_k = self.num_weights
-          #  self.norm = np.sum(self.weights)
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
@@ -302,7 +291,7 @@ class State:
             print(f'Measuring {n} photons in mode {mode}.')
             print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
             print('Probability of measurement = {:.3e}'.format(prob))
-            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
         
         self.norm = prob

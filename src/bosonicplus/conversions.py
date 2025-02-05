@@ -8,6 +8,11 @@ def r_to_dB(r):
     """
     return 10*np.log10(np.exp(-2*r))
 
+def eps_to_dB(eps):
+    """Convert fock damping to dB units
+    """
+    return -10*np.log10(np.tanh(eps))
+    
 def dB_to_r(dB):
     """Convert from dB squeezing to squeezing value
     """

@@ -40,7 +40,7 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent(N, infid, eps = None, fast = False):
+def gen_fock_coherent(N, infid, eps = None, fast = False, norm = True):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
@@ -109,10 +109,12 @@ def gen_fock_coherent(N, infid, eps = None, fast = False):
     weights *= factor
 
     if fast:
-        weights /= np.sum(weights.real) #renormalize
+        if norm:
+            weights /= np.sum(weights.real) #renormalize
         return means, cov, weights, k
     else:
-        weights /= np.sum(weights)
+        if norm:
+            weights /= np.sum(weights)
         return means, cov, weights
 
 

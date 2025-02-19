@@ -95,13 +95,15 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     
 
     if k2:
-        data_A = r_A_prime, sigma_A_prime, reweights, k1*k2
         prob = np.sum(reweights.real)
-        return data_A, prob
+        data_A = r_A_prime, sigma_A_prime, reweights, k1*k2, prob
+        
+        return data_A
     else:
-        data_A = r_A_prime, sigma_A_prime, reweights
         prob=np.sum(reweights)
-        return data_A, prob
+        data_A = r_A_prime, sigma_A_prime, reweights, len(reweights), prob
+        
+        return data_A
 
 
 # PSEUDO PNRD MEASUREMENT
@@ -228,8 +230,8 @@ def project_fock_thermal(data, mode, n ,r = 0.05):
     prob = np.sum(new_weights)
     #new_weights /=  prob
 
-    data_A = r_A_prime, sigma_A_prime, new_weights
-    return data_A, prob
+    data_A = r_A_prime, sigma_A_prime, new_weights, prob
+    return data_A
 
 
 # Homodyne measurement
@@ -293,9 +295,9 @@ def project_homodyne(data, mode, result, MP = False):
     else:
         prob = np.sum(reweights)
 
-    data_A = r_A_prime, sigma_A_prime, reweights
+    data_A = r_A_prime, sigma_A_prime, reweights, prob
     
-    return data_A, prob
+    return data_A
 
 
     

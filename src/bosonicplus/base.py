@@ -1,7 +1,11 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
+from thewalrus.decompositions import williamson
 from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal
 from bosonicplus.states.wigner import Gauss
+from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
+from bosonicplus.states.reduce import reduce
+
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
@@ -39,20 +43,25 @@ class State:
         To do: what if new_data is in a different ordering?
         """
         #self.data = new_data
-        self.means = new_data[0]
-        self.covs = new_data[1]
-        self.weights = new_data[2]
+        if len(new_data) != 5:
+            raise ValueError('new_data must be [means, covs, weights, k, norm] tuple.')
+            
+        self.means, self.covs, self.weights, self.num_k, self.norm = new_data
+        #self.covs = new_data[1]
+        #self.weights = new_data[2]
+        #self.num_k = new_data
+        #self.norm = new_data[4]
 
         self.num_weights = len(self.weights)
         self.ordering = ordering
         
-        if len(new_data) == 4:
-            k = new_data[3]
-            self.num_k = k
-            self.norm = np.sum(self.weights.real) 
-        else:
-            self.num_k = self.num_weights
-            self.norm = np.sum(self.weights)
+        #if len(new_data) == 4:
+            #k = new_data[3]
+            #self.num_k = k
+            #self.norm = np.sum(self.weights.real) 
+        #else:
+            #self.num_k = self.num_weights
+            #self.norm = np.sum(self.weights)
         
         self.num_modes = int(np.shape(self.means)[-1]/2)
         if len(self.covs.shape) != 3: 
@@ -211,13 +220,13 @@ class State:
         means = self.means
         cov = self.covs
 
-        if self.ordering == 'xxpp':
+        if self.ordering == 'xpxp':
             X = np.diag(np.repeat(np.sqrt(etas),2))
             Y = np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 ))
-        elif self.ordering == 'xpxp':
-            X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(etas),2)))
-            Y = xxpp_to_xpxp(np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 )))
-        
+        elif self.ordering == 'xxpp':
+            X = xpxp_to_xxpp(np.diag(np.repeat(np.sqrt(etas),2)))
+            Y = xpxp_to_xxpp(np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 )))
+    
         means = np.einsum("...jk,...k", X, means)
         cov = X @ cov @ X.T
         cov += Y
@@ -279,11 +288,11 @@ class State:
         data_in = self.means, self.covs, self.weights
         
         if red_gauss:
-            data_out, prob = project_fock_coherent(n, data_in, mode, inf, self.num_k)
+            data_out = project_fock_coherent(n, data_in, mode, inf, self.num_k)
             #self.update_data(data_out)
             
         else: 
-            data_out, prob = project_fock_coherent(n, data_in, mode, inf)
+            data_out = project_fock_coherent(n, data_in, mode, inf)
         
         self.update_data(data_out)
     
@@ -294,7 +303,7 @@ class State:
             print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
         
-        self.norm = prob
+        #self.norm = prob
 
     def post_select_fock_thermal(self, mode, n, r =0.05, out = False):
         #Make sure that ordering is xpxp first
@@ -505,10 +514,49 @@ class State:
         new_means = np.array([np.concatenate(i) for i in new_means])
         
         #new_means = np.array(list(it.product(means1,means2))).reshape((K,2*(N+M)))
-        
-        data_new = new_means, new_cov, new_weights
+        if self.num_k:
+            data_new = new_means, new_cov, new_weights, self.num_k
+        else:
+            data_new = new_means, new_cov, new_weights
         
         self.update_data(data_new)
+
+    #def reduce_pure(self, nmax):
+     #   data = self.means, self.covs, self.weights, self.num_k
+      #  cnms = [get_cnm(i, nmax, data) for i in range(nmax+1)]
+       # fock_coeffs = cnms/cnms[-1]
+        #self.update_data(gen_fock_superpos_coherent(fock_coeffs, 1e-4, fast=True))
+        
+    def reduce(self, nmax:int, infid = 1e-6):
+        """Map the state to O((nmax+1)**2) Gaussians
+        Args:
+            nmax : max photon number
+        Returns:
+            updates the state data
+
+        """
+        
+        #invert the symplectic
+        
+        D, S = williamson(self.covs[0])
+        
+        #Remove any squeezing
+        self.apply_symplectic(np.linalg.inv(S))
+        
+        
+        data = self.means, self.covs, self.weights, self.num_k, self.norm
+        
+        eps = eps_superpos_coherent(nmax, infid)
+
+        #Perform the reduction
+        new_data = reduce(nmax, eps, data)
+        
+        self.update_data(new_data)
+    
+        #Re-apply the squeezing
+        self.apply_symplectic(S)
+        
+    
     
     
     

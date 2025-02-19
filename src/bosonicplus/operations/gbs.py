@@ -90,3 +90,25 @@ def build_interferometer(params : dict, nmodes : int, out = False):
     
         
     return state
+
+
+def bosonicplus_circuit(nmodes, r, eta, n, fast = True):
+    state = State(nmodes)
+    bs = xxpp_to_xpxp(beam_splitter(np.pi/4,0))
+
+    for i in range(nmodes):
+        
+        state.apply_symplectic_fast(xxpp_to_xpxp(squeezing(r, i*np.pi)),[i])
+    for i in range(nmodes):
+        if i < nmodes-1:
+            state.apply_symplectic_fast(bs, [i,i+1])
+    if eta != 1:
+        state.apply_loss(np.repeat(eta,nmodes),np.zeros(nmodes))
+    
+    for i in range(nmodes-1):
+        state.post_select_fock_coherent(0,n[i],inf=1e-4,red_gauss = fast)
+        print(f'detecting {n[i]} photons')
+        print('no. of weights', state.num_weights)
+        #state.post_select_fock_coherent(0,n)
+    
+    return state

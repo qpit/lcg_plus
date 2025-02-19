@@ -252,5 +252,24 @@ def plot_marginal(ax, W, x, p, title, which = 'x', GKP = 'rect', ls='solid', lw=
             
     return 
 
+
+def plot_individual_gauss(W):
+    fig, axes  = plt.subplots(1,2,figsize=(3,3),sharex=True,sharey=True)
+    scale1 = np.max(W.real)
+    scale2 = np.max(W.imag)
+                                                            
+
+    nrm1 = mpl.colors.Normalize(-scale1, scale1)
+    nrm2 = mpl.colors.Normalize(-scale2, scale2)
+    
+    axes[0].contourf(x,x, W.real, 100, cmap=cm.RdBu, norm = nrm1)
+    axes[1].contourf(x,x, W.imag, 100, cmap=cm.RdBu, norm = nrm2)
+    axes[0].set_aspect("equal")
+    axes[1].set_aspect("equal")
+    fig.set_tight_layout(True)
+    
+    plt.show()
+    
+
     
     

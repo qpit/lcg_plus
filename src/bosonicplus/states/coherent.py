@@ -6,11 +6,22 @@
 # The Wigner function of the superposition of coherent states is a weighted sum of Gaussians.
 
 import numpy as np
-from math import factorial
+#from math import factorial
+from scipy.special import factorial
 from mpmath import mp, fp 
 from scipy.special import comb
 #from bosonicplus.base import State
 hbar = 2
+
+def gen_indices(nmax:int):
+    """Generate the upper triangular n,m index list, with diagonal indices in front
+    """
+    k1 = nmax+1
+    ns, ms = np.triu_indices(k1,1)
+    ns = np.concatenate([range(k1),ns])
+    ms = np.concatenate([range(k1),ms])
+    return ns, ms
+
 
 def outer_coherent(alpha, beta):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
@@ -40,14 +51,110 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent(N, infid, eps = None, fast = False, norm = True):
+def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
         N (int): fock number
         infid (float): infidelity of approximation
         eps (float): coherent state amplitude, takes presidence over infid if specified.
-        fast (bool): whether to invoke the fast representation, which uses approx half of the Gaussians
+        fast (bool): whether to invoke the fast representation, which uses N(N+1)/2 Gaussians
+
+    See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
+
+    Returns: 
+        means, covs, weights, k
+    """
+    
+    cov = 0.5*hbar * np.eye(2)
+    theta = 2*np.pi/(N+1)
+    if not eps:
+        eps = eps_fock_coherent(N, infid)
+
+    ns, ms = gen_indices(N)
+
+    alphas = eps * np.exp(1j*theta*ns)
+    betas = eps * np.exp(1j*theta*ms)
+    
+    means, cov, d = outer_coherent(alphas,betas)
+    weights = d * np.exp(-1j*theta*N*(ns-ms))
+    
+    weights[N+1:] *= 2 #For real parts
+    
+    if norm:
+        weights /= np.sum(weights.real)
+    
+    return means.T, cov, weights, N+1
+    
+
+def eps_superpos_coherent(N, inf):
+    """Returns the magnitude of the coherent states giving for the desired 
+    infidelity of the Fock superposition up to photon number N.
+    """
+    return (factorial(N+1)*inf)**(1/(2*(N+1)))
+
+def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = True):
+    """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
+    in the coherent-fock representation.
+
+    Args:
+        coeffs (list/array):  the coefficients in front of the number states, coeff = [c0, c1, c2, ... c_nmax] 
+        infid (float): infidelity of approx
+    Returns: 
+        means_new (ndarray): list of means
+        cov (array): vacuum cov
+        weights_new (ndarray): list of weights 
+        k (int) : N + 1
+    """
+
+    N = len(coeffs)-1
+    if not eps:
+        eps = eps_superpos_coherent(N, infid)
+
+    theta = 2*np.pi /(N+1) 
+        
+    ns = np.array(range(N+1))[:,np.newaxis]
+    ks = np.array(range(N+1))[np.newaxis,:]
+    
+    ckn  = np.sqrt(factorial(ns)) / eps** ns * coeffs[:,np.newaxis] * np.exp(-1j*ks*ns*theta)
+    ck = np.sum(ckn, axis = 0)
+   
+
+    ns, ms = gen_indices(N)
+    alphas = eps * np.exp(1j * theta * ns)
+    betas = eps * np.exp(1j* theta * ms)
+    
+    means, cov, d = outer_coherent(alphas,betas)
+
+    weights = d
+    weights[N+1:] *=2 #For the real parts
+    weights[0:N+1] *= np.abs(ck)**2
+    weights[N+1:] *= ck[ns[N+1:]] * np.conjugate(ck[ms[N+1:]])
+    
+    weights /= np.sum(weights.real)
+        
+    return means.T, cov, weights, N+1
+
+def norm_coherent(N, eps):
+    """REVISE
+    """
+    norm = 1 + eps**(2*(N+1))/factorial(N+1)
+    return norm
+    
+def order_infidelity_fock_coherent(N, alpha):
+    """give infidelity of N fock approximation using given alpha - Eq? of M&A
+    """
+    return factorial(N)/factorial(2*N+1)*alpha**(2*(N+1))
+
+#Old generating functions
+def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
+    """Generate the Bosonic state data for a Fock state N in the coherent state representation.
+    
+    Args:
+        N (int): fock number
+        infid (float): infidelity of approximation
+        eps (float): coherent state amplitude, takes presidence over infid if specified.
+        fast (bool): whether to invoke the fast representation, which uses N(N+1)/2 Gaussians
 
     See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
 
@@ -116,15 +223,8 @@ def gen_fock_coherent(N, infid, eps = None, fast = False, norm = True):
         if norm:
             weights /= np.sum(weights)
         return means, cov, weights
-
-
-def eps_superpos_coherent(N, inf):
-    """Returns the magnitude of the coherent states giving for the desired 
-    infidelity of the Fock superposition up to photon number N.
-    """
-    return (factorial(N+1)*inf)**(1/(2*(N+1)))
-
-def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = False):
+        
+def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
     in the coherent-fock representation.
 
@@ -204,18 +304,6 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = False):
     else:
         weights /=np.sum(weights)
         return np.array(means), cov, np.array(weights)
-
-def norm_coherent(N, eps):
-    """REVISE
-    """
-    norm = 1 + eps**(2*(N+1))/factorial(N+1)
-    return norm
-    
-def order_infidelity_fock_coherent(N, alpha):
-    """give infidelity of N fock approximation using given alpha - Eq? of M&A
-    """
-    return factorial(N)/factorial(2*N+1)*alpha**(2*(N+1))
-
 
 # |N><M| operator
 # ---------------------------------------
@@ -412,3 +500,32 @@ def gen_fock_bosonic(n, r=0.05):
     return means, covs, weights
 
 
+def mu_to_alphas(mu):
+    alpha = 0.5*(mu[0].real-mu[1].imag)+1j*0.5*(mu[0].imag+mu[1].real)
+    beta = 0.5*(mu[0].real+mu[1].imag)+1j*0.5*(mu[1].real-mu[0].imag)
+    exparg = -0.5*(mu[0].imag)**2 - 0.5*(mu[1].imag)**2 + 0.5*1j*(mu[1].real*mu[1].imag+mu[0].real*mu[0].imag)
+    
+    d = np.exp(exparg)
+
+    #mu2, cov, coeff = outer_coherent(alpha,beta)
+    #print(np.allclose(mu2,mu))
+    #print(np.allclose(coeff,d))
+    
+    return alpha, beta, d
+
+
+def get_cnm(n,m, data):
+    c=0
+    
+    means, covs, weights, k = data
+    
+    for i in range(len(weights)):
+        alpha, beta, d = mu_to_alphas(means[i])
+        exparg = -0.5*np.abs(alpha)**2-0.5*np.abs(beta)**2
+        if i < k:
+            c += weights[i]*np.exp(exparg)* alpha** n * np.conjugate(beta)**m /d
+        else:
+            c += 0.5 * weights[i]*np.exp(exparg)* alpha** n * np.conjugate(beta)**m /d
+            c += 0.5 * np.conjugate(weights[i])*np.exp(exparg)* np.conjugate(alpha)**m * beta**n /np.conjugate(d)
+        
+    return  c/np.sqrt(factorial(n)*factorial(m))

@@ -37,12 +37,13 @@ class State:
         self.norm = 1 #Normalisation (relevant when doing measurements)
 
     def update_data(self, new_data : tuple, ordering = 'xpxp'):
-        """Insert a custom data tuple, new_data = [means, covs, weights, k]. 
+        """Insert a custom data tuple, new_data = [means, covs, weights, k, norm]. 
         This overrides the existing state data completely.
         
         To do: what if new_data is in a different ordering?
         """
-        #self.data = new_data
+        
+        
         if len(new_data) != 5:
             raise ValueError('new_data must be [means, covs, weights, k, norm] tuple.')
             

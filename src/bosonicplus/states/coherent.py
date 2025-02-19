@@ -84,7 +84,7 @@ def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
     if norm:
         weights /= np.sum(weights.real)
     
-    return means.T, cov, weights, N+1
+    return means.T, cov, weights, N+1, np.sum(weights.real)
     
 
 def eps_superpos_coherent(N, inf):
@@ -133,7 +133,7 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = True):
     
     weights /= np.sum(weights.real)
         
-    return means.T, cov, weights, N+1
+    return means.T, cov, weights, N+1, np.sum(weights.real)
 
 def norm_coherent(N, eps):
     """REVISE
@@ -218,11 +218,11 @@ def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
     if fast:
         if norm:
             weights /= np.sum(weights.real) #renormalize
-        return means, cov, weights, k
+        return means, cov, weights, k, np.sum(weights.real)
     else:
         if norm:
             weights /= np.sum(weights)
-        return means, cov, weights
+        return means, cov, weights, len(weights), np.sum(weights)
         
 def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
@@ -300,10 +300,10 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
         weights = np.concatenate([weights, weights_re], axis = 0)
         means = np.concatenate([means, means_re], axis = 0)
         weights /= np.sum(weights.real)
-        return means, cov, weights, k
+        return means, cov, weights, k, np.sum(weights.real)
     else:
         weights /=np.sum(weights)
-        return np.array(means), cov, np.array(weights)
+        return np.array(means), cov, np.array(weights), len(weights), np.sum(weights)
 
 # |N><M| operator
 # ---------------------------------------
@@ -451,7 +451,7 @@ def gen_sqz_cat_coherent(r, alpha, k, MP = False):
     else:
         weights = weights/ np.array(np.sum(weights))
     
-    return np.array(means), cov, weights
+    return np.array(means), cov, weights, len(weights), np.sum(weights)
 
 
 def gen_fock_bosonic(n, r=0.05):
@@ -497,7 +497,7 @@ def gen_fock_bosonic(n, r=0.05):
     #weights /= np.sum(weights)
 
 
-    return means, covs, weights
+    return means, covs, weights, len(weights), np.sum(weights)
 
 
 def mu_to_alphas(mu):

@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import comb
-from bosonicplus.states.coherent import gen_fock_coherent, gen_fock_bosonic
+from bosonicplus.states.coherent import gen_fock_coherent, gen_fock_bosonic, gen_fock_coherent_old
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 from mpmath import mp
 hbar = 2
@@ -25,9 +25,9 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     """
     means, covs, weights = data
     if k2: 
-        means_f, sigma_f, weights_f, k1 = gen_fock_coherent(n, inf, fast=True)
+        means_f, sigma_f, weights_f, k1, norm = gen_fock_coherent(n, inf, fast=True)
     else:
-        means_f, sigma_f, weights_f = gen_fock_coherent(n, inf)
+        means_f, sigma_f, weights_f, k1, norm = gen_fock_coherent_old(n, inf)
     modes = [mode]
 
     mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1))
@@ -188,9 +188,9 @@ def project_ppnrd_thermal(data, mode, n, M):
     prob = np.sum(new_weights)
     #new_weights /=  prob
 
-    data_A = r_A_prime, sigma_A_prime, new_weights
+    data_A = r_A_prime, sigma_A_prime, new_weights, len(new_weights), prob
     
-    return data_A, prob 
+    return data_A 
 
 def project_fock_thermal(data, mode, n ,r = 0.05):
     means, covs, weights = data
@@ -230,7 +230,7 @@ def project_fock_thermal(data, mode, n ,r = 0.05):
     prob = np.sum(new_weights)
     #new_weights /=  prob
 
-    data_A = r_A_prime, sigma_A_prime, new_weights, prob
+    data_A = r_A_prime, sigma_A_prime, new_weights, len(new_weights), prob
     return data_A
 
 
@@ -295,7 +295,7 @@ def project_homodyne(data, mode, result, MP = False):
     else:
         prob = np.sum(reweights)
 
-    data_A = r_A_prime, sigma_A_prime, reweights, prob
+    data_A = r_A_prime, sigma_A_prime, reweights, len(reweights), prob
     
     return data_A
 

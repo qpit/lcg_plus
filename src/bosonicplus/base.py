@@ -43,7 +43,6 @@ class State:
         To do: what if new_data is in a different ordering?
         """
         
-        
         if len(new_data) != 5:
             raise ValueError('new_data must be [means, covs, weights, k, norm] tuple.')
             
@@ -75,15 +74,15 @@ class State:
         sum of average photon numbers for multimode states.
         """
         cov_tr = np.trace(self.covs, axis1=1,axis2=2)
-        mu_sq = np.einsum("...j,...j", self.means,self.means)
+        mu_sq = np.einsum("...j,...j", self.means, self.means)
 
         covsq_tr = np.trace(np.einsum("...jk,...kl", self.covs, self.covs), axis1 = 1, axis2=2)
         mucov = np.einsum("...j,...jk,...k", self.means, self.covs, self.means)
         
         num = self.num_modes
             
-        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*hbar)-1/2*num)/self.norm)
-        var = np.sum(self.weights*((covsq_tr+2*mucov)/(2 * hbar**2) - 1 / 4*num)/self.norm)
+        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*hbar)-1/2*num))/self.norm
+        var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * hbar**2) - 1 / 4*num)/self.norm)
         #Variance might not be compatible with the sum-of-gaussians framework
         
         return ex, var
@@ -227,7 +226,7 @@ class State:
         elif self.ordering == 'xxpp':
             X = xpxp_to_xxpp(np.diag(np.repeat(np.sqrt(etas),2)))
             Y = xpxp_to_xxpp(np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 )))
-    
+
         means = np.einsum("...jk,...k", X, means)
         cov = X @ cov @ X.T
         cov += Y
@@ -258,10 +257,10 @@ class State:
         means = self.means
         cov = self.covs
 
-        if self.ordering == 'xxpp':
+        if self.ordering == 'xpxp':
             X = np.diag(np.repeat(np.sqrt(Gs),2))
             Y = np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 ))
-        elif self.ordering == 'xpxp':
+        elif self.ordering == 'xxpp':
             X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(Gs),2)))
             Y = xxpp_to_xpxp(np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 )))
         
@@ -314,7 +313,7 @@ class State:
         data_in = self.means, self.covs, self.weights
             
     
-        data_out, prob = project_fock_thermal(data_in, mode, n, r)
+        data_out = project_fock_thermal(data_in, mode, n, r)
         self.update_data(data_out)
     
         if out:
@@ -322,10 +321,6 @@ class State:
             print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
             print('Probability of measurement = {:.3e}'.format(prob))
             print(f'Data shape after measurement, {[i.shape for i in data_out]}')
-
-        
-        self.norm = prob
-        
 
 
     def post_select_ppnrd_thermal(self, mode, n, M, out =False):
@@ -359,7 +354,7 @@ class State:
 
         data_in = self.means, self.covs, self.weights
 
-        data_out, prob = project_ppnrd_thermal(data_in, mode, n, M)
+        data_out = project_ppnrd_thermal(data_in, mode, n, M)
     
         if out:
             print(f'Measuring {n} clicks in mode {mode}.')
@@ -368,7 +363,7 @@ class State:
             print(f'Data shape after measurement, {[i.shape for i in data_out]}')
             
         self.update_data(data_out)
-        self.norm = prob
+       
 
 
     def post_select_homodyne(self, mode, angle, result, MP = False):
@@ -382,9 +377,9 @@ class State:
 
         data_in = self.means, self.covs, self.weights
         
-        data_out, prob = project_homodyne(data_in, mode, result, MP)
+        data_out = project_homodyne(data_in, mode, result, MP)
         self.update_data(data_out)
-        self.norm = prob 
+        
 
     def get_wigner_bosonic(self, xvec, pvec, indices = None):
         """Adapted from strawberryfields.backends.states for BaseBosonicState
@@ -480,7 +475,7 @@ class State:
     
         print('new data shape', new_means.shape, new_cov.shape, new_weights.shape)
         
-        data_new = new_means, new_cov, new_weights
+        data_new = new_means, new_cov, new_weights, len(new_weights), np.sum(new_weights)
         
         self.update_data(data_new)
 
@@ -516,9 +511,9 @@ class State:
         
         #new_means = np.array(list(it.product(means1,means2))).reshape((K,2*(N+M)))
         if self.num_k:
-            data_new = new_means, new_cov, new_weights, self.num_k
+            data_new = new_means, new_cov, new_weights, self.num_k, np.sum(new_weights.real)
         else:
-            data_new = new_means, new_cov, new_weights
+            data_new = new_means, new_cov, new_weights, len(new_weights), np.sum(new_weights)
         
         self.update_data(data_new)
 
@@ -551,8 +546,12 @@ class State:
 
         #Perform the reduction
         new_data = reduce(nmax, eps, data)
+        #new_means, new_cov, new_weights, new_k, new_norm = new_data
+        #new_data = new_means, new_cov, new_weights, new_k, self.norm
+        #new_data[-1] = self.norm
         
         self.update_data(new_data)
+        #self.update_data(new_data)
     
         #Re-apply the squeezing
         self.apply_symplectic(S)

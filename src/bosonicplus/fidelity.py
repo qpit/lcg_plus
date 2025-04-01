@@ -8,7 +8,7 @@ def overlap_bosonic(state1, state2):
     if state1.num_modes != state2.num_modes:
         raise ValueError('Number of modes is not the same in both states.')
 
-    if state1.num_k == state1.num_weights or state2.num_k == state2.num_weights:
+    if state1.num_k != state1.num_weights or state2.num_k != state2.num_weights:
         return overlap_reduced(state1, state2)
     else:
         return overlap_full(state1, state2)

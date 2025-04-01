@@ -3,16 +3,27 @@ from mpmath import mp
 
 hbar = 2
 
-def fidelity_bosonic(state1, state2, MP = False):
-    """Calculate fidelity between two states in sum-of-gaussian representation, assuming one of them is pure
-    If state1 == state2, return the purity. Overlap
+def overlap_bosonic(state1, state2):
+    #Equal number of modes check
+    if state1.num_modes != state2.num_modes:
+        raise ValueError('Number of modes is not the same in both states.')
+
+    if state1.num_k == state1.num_weights or state2.num_k == state2.num_weights:
+        return overlap_reduced(state1, state2)
+    else:
+        return overlap_full(state1, state2)
+        
+
+def overlap_full(state1, state2, MP = False):
+    """Calculate the overlap of two states in sum-of-gaussian representation.
+    If state1 == state2, returns the purity.
     
     Args:
         state1
         state2
-        MP (bool): Not completely implemented yet
+        MP (bool): Higher precision. Not completely implemented yet. 
     Returns:
-        fidelity (complex): fidelity of state1 with state2, assuming one of them is pure
+        overlap (complex): fidelity of state1 with state2, assuming one of them is pure
     """
     
     #Equal number of modes check
@@ -41,23 +52,24 @@ def fidelity_bosonic(state1, state2, MP = False):
     weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                * np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
                
-    fidelity = np.sum(weighted_exp)/(state1.norm*state2.norm)
+    overlap = np.sum(weighted_exp)/(state1.norm*state2.norm)
     
-    return fidelity
+    return overlap
     
-def fidelity_bosonic_new(state1, state2):
-    """NEW FIDELITY FUNCTION FOR CALCULATING FIDELITY OF WIGNER AS SUM OF GAUSSIANS
-    WHERE THE REAL PARTS OF THE CROSS TERMS ARE USED.
+def overlap_reduced(state1, state2):
+    """Overlap of two states when one or more are in the redcued format,
+    where only half the cross terms are stored. 
+
+    If one of the states is pure, then this is the fidelity.
     
-    Calculate fidelity between two states in coherent representation 
-    i.e. there is only one covariance matrix, but many weights and means.
+    There is only one covariance matrix, but many weights and means.
     
     Args:
         state1 (bosonicplus.base.State):
         state2 (bosonicplus.base.State):
         
     Returns:
-        fidelity (float): fidelity of state1 with state2, assuming one of them is pure
+        overlap (complex): overlap of state1 with state2
     """
     
     #Equal number of modes check
@@ -66,9 +78,10 @@ def fidelity_bosonic_new(state1, state2):
 
     N = state1.num_modes
 
-    #The number of weights that are treated "normally", where the remainder of the weights must recieve special treatment
-    k1 = state1.num_k
-    k2 = state2.num_k
+    
+    #The number of weights that have real Gaussians
+    k1 = state1.num_k 
+    k2 = state2.num_k 
 
     weights1 = state1.weights
     weights2 = state2.weights
@@ -89,29 +102,29 @@ def fidelity_bosonic_new(state1, state2):
         weights2[np.newaxis,k2:]) *hbar**N *np.exp(-0.5*exp_arg_special)/np.sqrt( np.linalg.det(covsum))  
                 
     
-    fidelity = 0    
-    fidelity += np.sum(weighted_exp[0:k1,0:k2])
-    fidelity += np.sum(weighted_exp[0:k1,k2:]).real
-    fidelity += np.sum(weighted_exp[k1:,0:k2]).real
-    fidelity += 0.5*np.sum(weighted_exp[k1:,k2:]).real
-    fidelity += 0.5*np.sum(weighted_exp_special).real
+    overlap = 0    
+    overlap += np.sum(weighted_exp[0:k1,0:k2])
+    overlap += np.sum(weighted_exp[0:k1,k2:]).real
+    overlap += np.sum(weighted_exp[k1:,0:k2]).real
+    overlap += 0.5*np.sum(weighted_exp[k1:,k2:]).real
+    overlap += 0.5*np.sum(weighted_exp_special).real
     
-    return fidelity/(state1.norm*state2.norm)
+    return overlap/(state1.norm*state2.norm)
 
 
 
-def fidelity_with_wigner(W1, W2, xvec, pvec):
+def overlap_with_wigner(W1, W2, xvec, pvec):
     """
-    Calculate fidelity via numerically integrating over explicit Wigner functions.
+    Calculate overlap by numerically integrating over the explicit single-mode Wigner functions.
     
     Args:
-        W1 (ndarray): Wigner mesh
-        W2 (ndarray):
+        W1 (ndarray): Wigner mesh of state 1
+        W2 (ndarray): Wigner mesh of state 2
         xvec (ndarray): points in x
         pvec (ndarray): points in p
         
     Returns:
-        (float): fidelity
+        (float): overlap
     """
     delta_x = xvec[-1] - xvec[-2]
     delta_p = pvec[-1] - pvec[-2]

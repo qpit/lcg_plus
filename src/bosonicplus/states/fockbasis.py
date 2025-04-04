@@ -3,7 +3,7 @@ from scipy.special import factorial, genlaguerre
 
 ## To do: speed up, e.g. rho is self-adjoint.
 
-def Dmn(alpha : complex, n : int, m : int) -> complex:
+def Dmn(alpha : complex, m : int, n : int) -> complex:
     """Calculates mn'th element of complex displacement operator with alpha using the Cahill1969 formula
     """
     

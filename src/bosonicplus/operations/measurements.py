@@ -25,7 +25,7 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     """
     means, covs, weights = data
     if k2: 
-        means_f, sigma_f, weights_f, k1, norm = gen_fock_coherent(n, inf, fast=True)
+        means_f, sigma_f, weights_f, k1, norm = gen_fock_coherent(n, inf)
     else:
         means_f, sigma_f, weights_f, k1, norm = gen_fock_coherent_old(n, inf)
     modes = [mode]

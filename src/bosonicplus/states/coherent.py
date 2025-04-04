@@ -51,7 +51,7 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
+def gen_fock_coherent(N, infid, eps = None, norm = True):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
@@ -93,7 +93,7 @@ def eps_superpos_coherent(N, inf):
     """
     return (factorial(N+1)*inf)**(1/(2*(N+1)))
 
-def gen_fock_superpos_coherent(coeffs, infid, eps = None, fast = True):
+def gen_fock_superpos_coherent(coeffs, infid, eps = None):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
     in the coherent-fock representation.
 

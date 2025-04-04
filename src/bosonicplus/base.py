@@ -47,25 +47,15 @@ class State:
             raise ValueError('new_data must be [means, covs, weights, k, norm] tuple.')
             
         self.means, self.covs, self.weights, self.num_k, self.norm = new_data
-        #self.covs = new_data[1]
-        #self.weights = new_data[2]
-        #self.num_k = new_data
-        #self.norm = new_data[4]
 
         self.num_weights = len(self.weights)
         self.ordering = ordering
         
-        #if len(new_data) == 4:
-            #k = new_data[3]
-            #self.num_k = k
-            #self.norm = np.sum(self.weights.real) 
-        #else:
-            #self.num_k = self.num_weights
-            #self.norm = np.sum(self.weights)
-        
         self.num_modes = int(np.shape(self.means)[-1]/2)
+        
         if len(self.covs.shape) != 3: 
             self.covs = np.array([self.covs]) #Quick fix for places where covs is shape (2,2), not (1,2,2)
+            
         self.num_covs = len(self.covs)
         
     def get_mean_photons(self):
@@ -96,8 +86,7 @@ class State:
             means, covs, weights = self.data
             means = np.array([xxpp_to_xpxp(i) for i in means])
             covs = np.array([xxpp_to_xpxp(i) for i in covs]) #quick workaround
-            self.update_data([means, covs, weights], 'xpxp')
-            #self.ordering = 'xpxp'
+            self.update_data([means, covs, weights], 'xpxp')  
 
     def to_xxpp(self):
         """Change the ordering from xpxp to xxpp
@@ -109,7 +98,6 @@ class State:
             means = np.array([xpxp_to_xxpp(i) for i in means])
             covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
             self.update_data([means, covs, weights], 'xxpp')
-            #self.ordering = 'xxpp'
 
     def apply_symplectic_fast(self, S, modes, ordering = 'xpxp'):
         """Partition total system into A and B modes. Act with symplectic on just the B modes, and
@@ -289,7 +277,6 @@ class State:
         
         if red_gauss:
             data_out = project_fock_coherent(n, data_in, mode, inf, self.num_k)
-            #self.update_data(data_out)
             
         else: 
             data_out = project_fock_coherent(n, data_in, mode, inf)
@@ -298,8 +285,8 @@ class State:
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
-            print('Probability of measurement = {:.3e}'.format(prob))
+            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
+            print('Probability of measurement = {:.3e}'.format(self.norm))
             print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
         
@@ -318,9 +305,9 @@ class State:
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
-            print('Probability of measurement = {:.3e}'.format(prob))
-            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
+            print('Probability of measurement = {:.3e}'.format(self.norm))
+            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
 
     def post_select_ppnrd_thermal(self, mode, n, M, out =False):
@@ -358,9 +345,9 @@ class State:
     
         if out:
             print(f'Measuring {n} clicks in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in]}.')
-            print('Probability of measurement = {:.3e}'.format(prob))
-            print(f'Data shape after measurement, {[i.shape for i in data_out]}')
+            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
+            print('Probability of measurement = {:.3e}'.format(self.norm))
+            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
             
         self.update_data(data_out)
        

@@ -236,7 +236,7 @@ def project_fock_thermal(data, mode, n ,r = 0.05):
 
 # Homodyne measurement
 # ----------------------------
-def project_homodyne(data, mode, result, MP = False):
+def project_homodyne(data, mode, result, k, MP = False):
     r"""Following Brask's Gaussian note (single mode)
     Do a homodyne x-measurement on one mode
     """
@@ -288,14 +288,16 @@ def project_homodyne(data, mode, result, MP = False):
     else:
         reweights_exp = np.exp(-0.5*reweights_exp_arg)
     
-    reweights = weights*reweights_exp/ Norm #mp?
+    reweights = weights*reweights_exp/ Norm
     
     if MP:
-        prob = mp.fdot(weights, Norm )
-    else:
+        prob = mp.fsum(reweights)
+        prob = float(mp.re(prob))
+    else: 
         prob = np.sum(reweights)
+        
 
-    data_A = r_A_prime, sigma_A_prime, reweights, len(reweights), prob
+    data_A = r_A_prime, sigma_A_prime, reweights, k, prob
     
     return data_A
 

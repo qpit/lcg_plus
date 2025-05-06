@@ -4,17 +4,17 @@ import numpy as np
 #import mpmath
 
 def r_to_dB(r):
-    """Convert squeezing to dB units
+    """Convert squeezing to dB units, r_dB = 10 * log10( exp(-2r) )
     """
     return 10*np.log10(np.exp(-2*r))
 
 def eps_to_dB(eps):
-    """Convert fock damping to dB units
+    """Convert fock damping to dB units (Hastrup loss analysis)
     """
     return -10*np.log10(np.tanh(eps))
     
 def dB_to_r(dB):
-    """Convert from dB squeezing to squeezing value
+    """Convert from dB squeezing to squeezing value 
     """
     return -0.5*np.log(10**(dB/10))
 
@@ -26,6 +26,12 @@ def Delta_to_dB(Delta):
 
 def dB_to_Delta(Delta_dB):
     return 10**(-Delta_dB/20)
+
+def to_dB(x):
+    return -10*np.log10(x)
+
+
+
 
 
 #def ratio_to_dB(amp):

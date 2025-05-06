@@ -1,19 +1,23 @@
 import numpy as np
 from math import factorial
 from bosonicplus.base import State
-from .coherent import gen_fock_coherent, gen_sqz_cat_coherent
+from .coherent import gen_fock_coherent, gen_sqz_cat_coherent, gen_fock_coherent_old
 from .gkp_squeezing import gen_gkp_coherent
 from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 
 
 def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = False):
     """Prepare Fock state in coherent state approx"""
-    data = gen_fock_coherent(n, inf,epsilon, fast)
+    if fast: 
+        data = gen_fock_coherent(n, inf, epsilon)
+    else:
+        data = gen_fock_coherent_old(n, inf, epsilon)
+        
     fock = State(1)
     fock.update_data(data)
     return fock
 
-def prepare_sqz_cat_coherent(r, alpha, k, MP =False):
+def prepare_sqz_cat_coherent(r, alpha, k, MP =False, fast = False):
     """Prepare a squeezed cat, requires a higher precision with mp.math
     Args: 
         r : squeezing of the cat
@@ -23,13 +27,13 @@ def prepare_sqz_cat_coherent(r, alpha, k, MP =False):
         State
     
     """
-    data = gen_sqz_cat_coherent(r, alpha, k, MP)
+    data = gen_sqz_cat_coherent(r, alpha, k, MP, fast)
     
     sq_cat = State(1)
     sq_cat.update_data(data)
     return sq_cat
 
-def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4,fast=False):
+def prepare_gkp_coherent(n, lattice, N = 1, inf = 1e-4, fast=False):
     """
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
     Args: 
@@ -40,18 +44,22 @@ def prepare_gkp_coherent(n, which, N = 1, inf = 1e-4,fast=False):
     Returns:
         bosonicplus.base.State
     """
-    data_gkp = gen_gkp_coherent(n,which,N,inf,fast)
+    
+    data_gkp = gen_gkp_coherent(n,lattice,N,inf,fast)
+
+        
     state = State(1)
     state.update_data(data_gkp)
     
     return state
 
-def prepare_phssv(r, eta):
+def prepare_phssv(r, theta, eta):
     """Prepare a lossy photon subtracted single mode squeezed vacuum state
     by splitting the state on a 99:1 beam splitter, and heralding on a click 
     of the ancillary vacuum mode. Apply pure loss channel to output state
     Args: 
         r : squeezing
+        theta : T of beamsplitter (0.99) 
         eta : transmittivity of the loss channel
     Returns:
         bosonicplus.base.State
@@ -64,7 +72,7 @@ def prepare_phssv(r, eta):
     state.add_state(State(1))
     
     #99:1 beamsplitter
-    state.apply_symplectic(xxpp_to_xpxp(beam_splitter(np.arccos(np.sqrt(0.99)),0)))
+    state.apply_symplectic(xxpp_to_xpxp(beam_splitter(np.arccos(np.sqrt(theta)),0)))
     
     #Measure a click in mode 1
     state.post_select_ppnrd_thermal(1,1,1) 

@@ -131,10 +131,10 @@ def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="rea
             / (1 + np.exp(-2 * epsilon))
             * np.identity(2)
         )
-        covs = np.repeat(covs[None, :], weights.size, axis=0)
-        
+        #covs = np.repeat(covs[None, :], weights.size, axis=0)
+                
         state = State(1)
-        state.update_data([means, covs, weights])
+        state.update_data([means, covs, weights, len(weights), np.sum(weights)])
         return state
 
 

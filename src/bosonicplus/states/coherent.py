@@ -427,7 +427,7 @@ def outer_sqz_coherent(r, alpha, beta, MP = False):
 
     return mu, cov, coeff
 
-def gen_sqz_cat_coherent(r, alpha, k, MP = False):
+def gen_sqz_cat_coherent(r, alpha, k, MP = False, fast = False):
     """Prepare a squeezed cat, requires a higher precision with mp.math
 
     Args: 
@@ -437,8 +437,11 @@ def gen_sqz_cat_coherent(r, alpha, k, MP = False):
     Returns:
         tuple
     """
-    
-    params = [(1, alpha,alpha), (1,-alpha,-alpha), ((-1)**k,alpha,-alpha), ((-1)**k,-alpha,alpha)]
+    if fast: 
+        params = [(1, alpha,alpha), (1,-alpha,-alpha), (2*(-1)**k,alpha,-alpha)]
+    else:
+        params = [(1, alpha,alpha), (1,-alpha,-alpha), ((-1)**k,alpha,-alpha), ((-1)**k,-alpha,alpha)]
+        
     means = []
     weights = []
     
@@ -446,12 +449,24 @@ def gen_sqz_cat_coherent(r, alpha, k, MP = False):
         means_a, cov, weights_a = outer_sqz_coherent(r, a[1], a[2],MP)
         means.append(means_a)
         weights.append(weights_a*a[0])
-    if MP: 
-        weights = weights/ np.array(mp.fsum(weights))
-    else:
-        weights = weights/ np.array(np.sum(weights))
+
+    means = np.array(means)
+    weights = np.array(weights)
     
-    return np.array(means), cov, weights, len(weights), np.sum(weights)
+    if fast:
+        if MP:
+            weights /= mp.fsum(weights.real)
+            return means, cov, weights, 2, mp.fsum(weights.real)
+        else:
+            weights /= np.sum(weights.real)
+            return means, cov, weights, 2, np.sum(weights.real)
+    else:
+        if MP:
+            weights /= mp.fsum(weights)
+            return means, cov, weights, len(weights), mp.fsum(weights)
+        else:
+            weights /= np.sum(weights)
+            return means, cov, weights, len(weights), np.sum(weights)
 
 
 def gen_fock_bosonic(n, r=0.05):

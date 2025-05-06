@@ -21,7 +21,7 @@ def mu_to_alphas(mu):
 
 def reduce(nmax:int, eps:float, data:tuple):
     """Find the weights of the reduced state with stellar rank nmax. The number of new weights is of order (nmax+1)^2.
-    Note that the off-diagonal new weights are not multiplied by 2 here.
+    
 
     Args: 
         nmax : max number of photons in reduced state
@@ -33,7 +33,7 @@ def reduce(nmax:int, eps:float, data:tuple):
     means, covs, weights, num_k, norm = data
     
     #Normalise weights
-    weights /= norm 
+    #weights /= norm 
     
     k1 = nmax+1
     
@@ -59,6 +59,7 @@ def reduce(nmax:int, eps:float, data:tuple):
     akk = a1**n1 * np.conjugate(a1)**m1
     akl = a2**n1 * np.conjugate(b2)**m1
     alk = b2**n1 * np.conjugate(a2)**m1
+ 
     sumkk = np.sum(w1*akk,axis=1)
     sumkl = np.sum(w2*akl,axis=1)
     sumlk = np.sum(np.conjugate(w2)*alk,axis=1)
@@ -91,6 +92,7 @@ def reduce(nmax:int, eps:float, data:tuple):
     nw[k1:]*=2
 
     #normalise the new weights
-    nw /= np.sum(nw.real)
+    #nw /= np.sum(nw.real)
     
+    #return means.T, covs, nw, k1, norm
     return means.T, covs, nw, k1, np.sum(nw.real)

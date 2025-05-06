@@ -6,6 +6,8 @@ from bosonicplus.states.wigner import Gauss
 from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
 from bosonicplus.states.reduce import reduce
 
+from bosonicplus.sampling import *
+
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
@@ -76,6 +78,43 @@ class State:
         #Variance might not be compatible with the sum-of-gaussians framework
         
         return ex, var
+
+    def get_mean(self, MP = False):
+        """Get first moment
+        """
+        if MP:
+            dim = len(self.means[0])
+            mu = np.array([float(mp.re(mp.fsum(self.weights * self.means[:,i]))) for i in range(dim)])
+        else:
+            mu = np.real_if_close(np.sum(self.weights[:,np.newaxis] * self.means, axis = 0)) 
+        
+        if self.num_k != self.num_weights:
+            mu = mu.real
+        
+        self.mean = mu #Set the first moment
+        return mu
+                
+
+    def get_cov(self, MP = False):
+        """Get second moment. 
+        """
+        offset = np.tensordot(self.mean, self.mean, axes =0)
+        
+        sigma_tilde = self.covs + np.einsum("...j,...k", self.means, self.means)
+        
+        if MP:
+            dim = len(self.covs[0][0])
+            cov = np.array([[float(mp.re(mp.fsum(self.weights
+                                                 * sigma_tilde[:,i,j]))) for i in range(dim)] for j in range(dim)])
+        else:  
+            cov = np.sum(self.weights[:,np.newaxis, np.newaxis] * sigma_tilde ,axis =0)
+            
+        
+        sigma = np.real_if_close(cov - offset)
+     
+            
+        self.sigma = sigma #Set the 2nd moment
+        return sigma
 
     def to_xpxp(self):
         """Change the ordering from xpxp to xxpp
@@ -355,16 +394,13 @@ class State:
 
     def post_select_homodyne(self, mode, angle, result, MP = False):
 
-        if self.num_k != self.num_weights:
-            raise ValueError('This measurement is not yet compatible with fast gaussian rep.')
-
         #First, rotate the mode by -angle
         S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))
         self.apply_symplectic(S)
 
         data_in = self.means, self.covs, self.weights
         
-        data_out = project_homodyne(data_in, mode, result, MP)
+        data_out = project_homodyne(data_in, mode, result, self.num_k, MP)
         self.update_data(data_out)
         
 
@@ -440,6 +476,7 @@ class State:
             else:
                 for i, mu in enumerate(self.means):
                     W += self.weights[i] * Gauss(self.covs[i], mu, x, p, MP)/self.norm
+        
         return W
 
     def multimode_copy(self, n):
@@ -487,8 +524,12 @@ class State:
         
         if MP:
             new_weights = np.array([mp.fprod(i) for i in np.array(list(it.product(weights1, weights2)))])
+            norm = mp.fsum(new_weights)
+            
         else:
             new_weights = np.prod(np.array(list(it.product(weights1, weights2))),axis=1)
+            norm = np.sum(new_weights)
+            
         
         K = len(new_weights)
         
@@ -497,10 +538,12 @@ class State:
         new_means = np.array([np.concatenate(i) for i in new_means])
         
         #new_means = np.array(list(it.product(means1,means2))).reshape((K,2*(N+M)))
-        if self.num_k:
-            data_new = new_means, new_cov, new_weights, self.num_k, np.sum(new_weights.real)
+        if k1*k2 != K:
+            new_weights /= norm.real
+            data_new = new_means, new_cov, new_weights, k1*k2, 1
         else:
-            data_new = new_means, new_cov, new_weights, len(new_weights), np.sum(new_weights)
+            new_weights /= norm
+            data_new = new_means, new_cov, new_weights, K, 1
         
         self.update_data(data_new)
 
@@ -509,6 +552,66 @@ class State:
       #  cnms = [get_cnm(i, nmax, data) for i in range(nmax+1)]
        # fock_coeffs = cnms/cnms[-1]
         #self.update_data(gen_fock_superpos_coherent(fock_coeffs, 1e-4, fast=True))
+
+
+    def reduce_equal_means(self, MP = False):
+        r"""Merge peaks with equal means
+        """
+        fast = False
+        if self.num_k != self.num_weights:
+            fast = True
+            
+            
+        means, cov, weights = self.means, self.covs, self.weights
+        
+        unique_means, idx, idx_inv  = np.unique(np.round(means,10),axis = 0, return_index = True, return_inverse=True)
+        
+        if MP:
+            new_weights = np.array([mp.mpc(0) for i in range(len(idx))])
+            for i, k in enumerate(idx_inv):
+                
+                new_weights[k] = mp.fsum([new_weights[k], weights[i]])
+    
+                
+        else:
+            new_weights = np.zeros(len(idx), dtype='complex')
+            for i, k in enumerate(idx_inv):
+                
+                new_weights[k] += weights[i]
+                
+        #Find number of real Gaussians, and sort them as [Re G, Im G]
+        if fast: 
+            
+            reals = unique_means.imag == 0
+            reals = reals[:,0]*reals[:,1]
+            
+            #Sort unique means, weights where means are real go first
+            means_re = unique_means[reals==True]
+            weights_re = new_weights[reals==True]
+            means_imag = unique_means[reals==False]
+            weights_imag = new_weights[reals==False]
+    
+            new_means = np.vstack((means_re, means_imag))
+            new_weights = np.hstack((weights_re, weights_imag))
+            num_k = np.sum(reals == True)
+            
+            if out:
+                print('num_k: ', num_k)
+        
+        if MP:
+            if fast:
+                reduced_data = new_means, cov, new_weights, num_k, float(mp.re(mp.fsum(new_weights)))
+            else:
+                reduced_data = unique_means, cov, new_weights, len(new_weights), float(mp.re(mp.fsum(new_weights)))
+        else:
+            if fast:
+                reduced_data = new_means, cov, new_weights, num_k, np.sum(new_weights)
+            else:
+                reduced_data = unique_means, cov, new_weights, len(new_weights), np.sum(new_weights)
+    
+        #Update the data tuple
+        self.update_data(reduced_data)
+        
         
     def reduce(self, nmax:int, infid = 1e-6):
         """Map the state to O((nmax+1)**2) Gaussians
@@ -542,8 +645,97 @@ class State:
     
         #Re-apply the squeezing
         self.apply_symplectic(S)
-        
+
+
+
+    def sample_dyne(self, modes, shots=1, covmat = [], method = 'normal', MP = False):
+        r"""Performs general-dyne measurements on a set of modes. 
+        """
+            
+        means_quad, covs_quad, quad_ind = select_quads(self, modes, covmat)
+            
+        ub_ind, ub_weights, ub_weights_prob = get_upbnd_weights(means_quad, covs_quad, self.weights, method, MP)
+
+        # Perform the rejection sampling technique until the desired number of shots
+        # are acquired
     
+        vals = np.zeros((shots, len(modes)))
+        reject_vals = []
+        
+        for i in range(shots):
+            drawn = False
+            while not drawn:
+                
+                # Sample an index for a peak from the upperbounding function
+                # according to ub_weights_prob
+                peak_ind_sample = np.random.choice(ub_ind, size=1, p=ub_weights_prob)[0]
+                # Get the associated mean covariance for that peak
+                mean_sample = means_quad[peak_ind_sample].real
+                
+                if len(covs_quad) != 1:
+                    cov_sample = covs_quad[peak_ind_sample]
+                else: 
+                    cov_sample = covs_quad[0]
+                # Sample a phase space value from the peak
+                peak_sample = np.random.multivariate_normal(mean_sample, cov_sample, size =1)[0]
+    
+                # Calculate the probability at the sampled point
+                prob_dist_val = generaldyne_probability(peak_sample, means_quad, covs_quad, self.weights, MP)
+    
+                #Calculate the upper bounding function at the sampled point
+                prob_upbnd = generaldyne_probability(peak_sample, means_quad[ub_ind,:].real, covs_quad, ub_weights, MP)
+                
+                # Sample point between 0 and upperbound function at the phase space sample
+                vertical_sample = np.random.random(size=1) * prob_upbnd
+                # Keep or reject phase space sample based on whether vertical_sample falls
+                # above or below the value of the probability distribution
+    
+                if vertical_sample > prob_dist_val:
+                    reject_vals.append(peak_sample)
+                if vertical_sample <= prob_dist_val:
+                    drawn = True
+                    vals[i] = peak_sample
+        
+        return vals, np.array(reject_vals)
+            
+    
+    def sample_dyne_gaussian(self, modes, shots = 1, covmat = [], M = 0, MP=False):
+        r"""Performs general-dyne measurements on a set of modes using a Gaussian 
+        upper bounding function based on the first and second moments of the state. 
+        
+        """
+        means_quad, covs_quad, quad_ind = select_quads(self, modes, covmat)
+        cov_ub, mean_ub, scale = get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind, MP)
+            
+        #Perform rejection sampling with the single guassian upper bounding function
+        vals = np.zeros((shots, len(modes)))
+        reject_vals = []        
+        
+        for i in range(shots):
+            drawn = False
+            while not drawn:
+              
+                #Draw a sample from the Gaussian
+                sample = np.random.multivariate_normal(mean_ub, cov_ub, size =1)[0]
+                if M ==0:
+                    prefactor = 1/np.sqrt(2*np.pi*np.linalg.det(cov_ub))
+                    prob_upbnd = generaldyne_probability(sample, mean_ub, cov_ub, np.array([scale/prefactor])) 
+                else:
+                    prob_upbnd = generaldyne_probability(sample, mean_ub, cov_ub, np.array([M]))
+                    
+                
+                y = np.random.random(size=1)*prob_upbnd 
+    
+                prob_dist_val = generaldyne_probability(sample, means_quad, covs_quad, self.weights, MP)
+             
+                if y > prob_dist_val:
+                    reject_vals.append(sample)
+                    
+                elif y <= prob_dist_val:
+                    drawn =True
+                    vals[i] = sample
+    
+        return vals, np.array(reject_vals)
     
     
     

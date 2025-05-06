@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.special import factorial
 from .fockbasis import density_mn
-from .coherent import outer_coherent, gen_fock_superpos_coherent
+from .coherent import outer_coherent, gen_fock_superpos_coherent, gen_fock_superpos_coherent_old
 
-def gkp_nonlinear_squeezing_operator(cutoff, N=1, which = '0'):
+def gkp_nonlinear_squeezing_operator_old(cutoff, N=1, which = '0'):
     """Construct the GKP nonlinear squeezing operator in the Fock basis up to a cutoff for a type of GKP state
     """
     I = np.eye(cutoff+1)
@@ -62,6 +62,68 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, which = '0'):
         rho = 1/2 *( 4*I - density_mn(alpha_x, cutoff) - density_mn(-alpha_x,cutoff) + density_mn(alpha_p,cutoff) + density_mn(-alpha_p,cutoff))
     return rho
 
+def gkp_nonlinear_squeezing_operator(cutoff, N=1, lattice = '0'):
+    """Construct the GKP nonlinear squeezing operator in the Fock basis up to a cutoff for a type of GKP state
+    """
+    I = np.eye(cutoff+1)
+    
+    if lattice == '0':
+        alpha_x = np.sqrt(2*np.pi * N)
+        alpha_p = np.sqrt(np.pi/2 * N)
+        
+        rho = 4*I - density_mn(alpha_x, cutoff) - density_mn(-alpha_x,cutoff) - density_mn(1j*alpha_p,cutoff) - density_mn(-1j*alpha_p,cutoff)
+
+    elif lattice == '1':
+        alpha_x = np.sqrt(2*np.pi * N)
+        alpha_p = np.sqrt(np.pi/2 * N)
+        
+        rho = 4*I + density_mn(1j*alpha_p, cutoff) + density_mn(-1j*alpha_p,cutoff) - density_mn(alpha_x,cutoff) - density_mn(-alpha_x,cutoff)
+
+    elif lattice == 's0': #symmetric zero
+        alpha = np.sqrt(np.pi * N)
+        
+        rho = 4*I - density_mn(-1j*alpha, cutoff) - density_mn(1j*alpha,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff)
+
+    elif lattice == 's1': #symmetric one
+        alpha = np.sqrt(np.pi * N)
+        
+        rho = 4*I + density_mn(-1j*alpha, cutoff) + density_mn(1j*alpha,cutoff) - density_mn(alpha,cutoff) - density_mn(-alpha,cutoff)
+        
+    elif lattice == 'h0':
+        kappa1 = 3**(-1/4) + 3**(1/4)
+        kappa2 = 3**(-1/4) - 3**(1/4)
+        gamma = np.sqrt(np.pi/2) * (kappa1 + 1j*kappa2)
+        delta = np.sqrt(np.pi/8) * (kappa2 + 1j*kappa1)
+
+        rho = 4*I - density_mn(gamma, cutoff) - density_mn(-gamma,cutoff) - density_mn(delta,cutoff) - density_mn(-delta,cutoff)
+        
+
+    elif lattice == 'h1':
+        kappa1 = 3**(-1/4) + 3**(1/4)
+        kappa2 = 3**(-1/4) - 3**(1/4)
+        gamma = np.sqrt(np.pi/2) * (kappa1 + 1j*kappa2)
+        delta = np.sqrt(np.pi/8) * (kappa2 + 1j*kappa1)
+
+        rho = 4*I - density_mn(gamma, cutoff) - density_mn(-gamma,cutoff) + density_mn(delta,cutoff) + density_mn(-delta,cutoff)
+
+    elif lattice == 'hs0':
+        kappa1 = 3**(-1/4) + 3**(1/4)
+        kappa2 = 3**(-1/4) - 3**(1/4)
+        gamma = np.sqrt(np.pi)/2 * (kappa1 + 1j*kappa2)
+        delta = np.sqrt(np.pi)/2 * (kappa2 + 1j*kappa1)
+
+        rho = 4*I - density_mn(gamma, cutoff) - density_mn(-gamma,cutoff) - density_mn(delta,cutoff) - density_mn(-delta,cutoff)
+
+    elif lattice == 'hs1':
+        kappa1 = 3**(-1/4) + 3**(1/4)
+        kappa2 = 3**(-1/4) - 3**(1/4)
+        gamma = np.sqrt(np.pi)/2 * (kappa1 + 1j*kappa2)
+        delta = np.sqrt(np.pi)/2 * (kappa2 + 1j*kappa1)
+
+        rho = 4*I - density_mn(gamma, cutoff) - density_mn(-gamma,cutoff) + density_mn(delta,cutoff) + density_mn(-delta,cutoff)
+
+    return rho /2 #Norm wrt Gaussian limit
+
 def gkp_operator_coherent(cutoff, which, eps):
     """Get GKP non-linear squeezing operator up to a cutoff in the Fock space in the coherent state decomp
     """
@@ -94,7 +156,7 @@ def gkp_operator_coherent(cutoff, which, eps):
             
     return np.array(means), np.array(cov), np.array(weights) #Don't normalise! Operator Q is not supposed to be normalised
 
-def gen_gkp_coherent(n, which, N = 1,inf = 1e-4, fast=False):
+def gen_gkp_coherent(n, lattice, N = 1,inf = 1e-4, fast = False):
     """
     Returns state data for 
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
@@ -104,12 +166,15 @@ def gen_gkp_coherent(n, which, N = 1,inf = 1e-4, fast=False):
         N: scaling of the grid
         inf: (in)fidelity of the coherent state approximation
     """
-    rho = gkp_nonlinear_squeezing_operator(n, N, which)
+    rho = gkp_nonlinear_squeezing_operator(n, N, lattice)
 
     w, v = np.linalg.eigh(rho)
     
     coeffs = v[:,0] #eigs always sorted from lowest to highest eigenvalue, choose lowest
-    data_gkp = gen_fock_superpos_coherent(coeffs, inf,fast=fast)
+    if fast:
+        data_gkp = gen_fock_superpos_coherent(coeffs, inf)
+    else:
+        data_gkp = gen_fock_superpos_coherent_old(coeffs, inf)
     
     return data_gkp
 

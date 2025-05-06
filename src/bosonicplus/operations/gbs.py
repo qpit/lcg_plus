@@ -11,7 +11,7 @@ def build_interferometer(params : dict, nmodes : int, out = False):
         nmodes (int): number of modes
         
     Returns:
-        circuit (BosonicModes):
+        state (bosonicplus.State):
     """
 
     state = State(nmodes) #ordering is xxpp
@@ -25,12 +25,12 @@ def build_interferometer(params : dict, nmodes : int, out = False):
     
     #Squeezing symplectics
     for i in range(len(sqz)):
-        S = expand(squeezing(sqz[i][0], sqz[i][1]), sqz[i][2], nmodes)
+        S = expand(squeezing(sqz[i][0], sqz[i][1]), i, nmodes)
         #S = xxpp_to_xpxp(expand(squeezing(sqz[i][0], sqz[i][1]), sqz[i][2], nmodes))
         Stot = S @ Stot
 
         if out:
-            print('Sgate[{:.3f},{:.3f}] on mode {}'.format(sqz[i][0],sqz[i][1], sqz[i][2]))
+            print('Sgate[{:.3f},{:.3f}] on mode {}'.format(sqz[i][0],sqz[i][1], i))
 
     #Beamsplitter symplectics
     bs = params['bs']
@@ -47,17 +47,17 @@ def build_interferometer(params : dict, nmodes : int, out = False):
     if phis: 
         for i in range(len(phis)):
             #S = xxpp_to_xpxp(expand(rotation(phis[i][0]), phis[i][1], nmodes))
-            S = expand(rotation(phis[i][0]), phis[i][1], nmodes)
+            S = expand(rotation(phis[i][0]), i, nmodes)
             Stot = S @ Stot
             if out:
-                print('Rgate[{:.3f}] on mode {}'.format(phis[i][0], phis[i][1]) )
+                print('Rgate[{:.3f}] on mode {}'.format(phis[i][0], i) )
 
     #Apply the symplectic to the state
     state.apply_symplectic(xxpp_to_xpxp(Stot))
                 
 
     #Apply displacements at the end of the circuit if any
-    alphas = params['alpha']
+    alphas = params['alphas']
     
 
     if alphas:
@@ -72,21 +72,22 @@ def build_interferometer(params : dict, nmodes : int, out = False):
         state.apply_displacement(xxpp_to_xpxp(disp))
             
     #Pure/thermal losses,
-    loss = params['loss']
-    if loss:
-        etas = np.ones(nmodes)
-        nbars = np.zeros(nmodes)
+    #loss = params['loss']
+    #if loss:
+     #   etas = np.ones(nmodes)
+      #  nbars = np.zeros(nmodes)
         
-        for i in range(len(loss)):
-            idx = loss[i][2]
-            etas[idx] = loss[i][0]
-            nbars[idx] = loss[i][1]
+       # for i in range(len(loss)): #Unpack this way incase losses aren't arranged in mode order
+        #    idx = loss[i][2]
+         #   etas[idx] = loss[i][0]
+          #  nbars[idx] = loss[i][1]
             
-            if out:
-                print(r'{:.1f}% loss channel with {:.1f}photons on mode {}'.format(loss[i][0]*100,loss[i][1],idx)) 
+           # if out:
+             #   print(r'{:.1f}% loss channel with {:.1f}photons on mode {}'.format(
+            #        loss[i][0]**2*100,loss[i][1],idx)) 
                 
         #Apply the losses       
-        state.apply_loss(etas, nbars) 
+        #state.apply_loss(etas, nbars) 
     
         
     return state

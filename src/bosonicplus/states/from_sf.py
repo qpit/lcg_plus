@@ -5,6 +5,7 @@ from mpmath import mp
 from scipy.special import comb
 from math import fsum
 from bosonicplus.base import State
+from bosonicplus.states.coherent import gen_fock_log
 
 hbar = 2
 
@@ -134,7 +135,7 @@ def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="rea
         #covs = np.repeat(covs[None, :], weights.size, axis=0)
                 
         state = State(1)
-        state.update_data([means, covs, weights, len(weights), np.sum(weights)])
+        state.update_data([means, covs, np.log(weights), len(weights)])
         return state
 
 
@@ -181,10 +182,37 @@ def prepare_fock_bosonic(n, r=0.05):
     #weights /= np.sum(weights)
 
     state = State(1)
-    state.update_data([means, covs, weights])
+    state.update_data([means, covs, np.log(weights), len(weights)])
     state.norm = np.sum(weights)
 
     return state
+
+
+def prepare_fock_log(n, r=0.05):
+    """
+    Prepares the arrays of weights, means and covs of a Fock state.
+    Normalisation becomes zero for n > 6 giving nan in the weights
+
+    Copied from strawberryfields bosonicbackend, modified here.
+
+    Args:
+        n (int): photon number
+        r (float): quality parameter for the approximation
+
+    Returns:
+        fock (BaseBosonicState): Fock state object
+
+    Raises:
+        ValueError: if :math:`1/r^2` is less than :math:`n`
+    """
+    means, covs, log_weights, num_k = get_fock_log(n,r)
+    
+    state.update_data([means, covs, log_weights, len(log_weights)])
+    state.normalise()
+    #state.norm = np.exp(logsumexp(log_weights))
+
+    return state
+
 
 def prepare_cat_bosonic(a, theta, p, MP = False):
     r"""Prepares the arrays of weights, means and covs for a cat state:

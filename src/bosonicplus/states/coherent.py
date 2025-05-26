@@ -7,9 +7,8 @@
 
 import numpy as np
 #from math import factorial
-from scipy.special import factorial
 from mpmath import mp, fp 
-from scipy.special import comb
+from scipy.special import  factorial, comb, logsumexp
 #from bosonicplus.base import State
 hbar = 2
 
@@ -22,6 +21,14 @@ def gen_indices(nmax:int):
     ms = np.concatenate([range(k1),ms])
     return ns, ms
 
+def gen_indices_full(nmax:int):
+    k1 = nmax+1
+    k1 = nmax+1
+    ns, ms = np.triu_indices(k1,1)
+    ks, ls = np.tril_indices(k1,-1)
+    ns = np.concatenate([range(k1),ns, ks])
+    ms = np.concatenate([range(k1),ms, ls])
+    return ns, ms
 
 def outer_coherent(alpha, beta):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
@@ -38,11 +45,9 @@ def outer_coherent(alpha, beta):
                                         + 1j *(im_alpha - im_beta), 
                                         im_alpha + im_beta
                                         + 1j * (re_beta - re_alpha)])
-    coeff = np.exp( -0.5 * (im_alpha - im_beta) **2
-                   - 0.5 * (re_alpha - re_beta) **2
-                   - 1j * im_beta * re_alpha + 1j * im_alpha * re_beta)
+    log_coeff = -0.5 * (im_alpha - im_beta) **2- 0.5 * (re_alpha - re_beta) **2- 1j * im_beta * re_alpha + 1j * im_alpha * re_beta
 
-    return mu, cov, coeff
+    return mu, cov, log_coeff
 
 def eps_fock_coherent(N, inf):
     """Returns the amplitude $\\eps = |\\alpha|$ of the coherent states giving the desired fidelity  
@@ -51,14 +56,13 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent(N, infid, eps = None, norm = True):
+def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
         N (int): fock number
         infid (float): infidelity of approximation
         eps (float): coherent state amplitude, takes presidence over infid if specified.
-        fast (bool): whether to invoke the fast representation, which uses N(N+1)/2 Gaussians
 
     See Eq 28 of http://arxiv.org/abs/2305.17099 for expansion into coherent states.
 
@@ -71,20 +75,26 @@ def gen_fock_coherent(N, infid, eps = None, norm = True):
     if not eps:
         eps = eps_fock_coherent(N, infid)
 
-    ns, ms = gen_indices(N)
+    if fast:
+        ns, ms = gen_indices(N)
+    else:
+        ns, ms = gen_indices_full(N)
 
     alphas = eps * np.exp(1j*theta*ns)
     betas = eps * np.exp(1j*theta*ms)
     
     means, cov, d = outer_coherent(alphas,betas)
-    weights = d * np.exp(-1j*theta*N*(ns-ms))
-    
-    weights[N+1:] *= 2 #For real parts
+    log_weights = d - 1j*theta*N*(ns-ms)
+
+    if fast:
+        log_weights[N+1:] += np.log(2) #For real parts
     
     if norm:
-        weights /= np.sum(weights.real)
+        log_norm = logsumexp(log_weights)
+        norm = np.exp(log_norm).real #Extract the real part. Should be real anyway if not fast
+        log_weights -= np.log(norm)
     
-    return means.T, cov, weights, N+1, np.sum(weights.real)
+    return means.T, cov, log_weights, N+1,
     
 
 def eps_superpos_coherent(N, inf):
@@ -106,6 +116,7 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None):
         weights_new (ndarray): list of weights 
         k (int) : N + 1
     """
+    #raise ValueError('Not fixed for log weights form (log(-1) = 1j*np.pi)')
 
     N = len(coeffs)-1
     if not eps:
@@ -115,25 +126,31 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None):
         
     ns = np.array(range(N+1))[:,np.newaxis]
     ks = np.array(range(N+1))[np.newaxis,:]
-    
-    ckn  = np.sqrt(factorial(ns)) / eps** ns * coeffs[:,np.newaxis] * np.exp(-1j*ks*ns*theta)
-    ck = np.sum(ckn, axis = 0)
-   
 
+    bn = np.log(np.sqrt(factorial(ns)) / eps** ns * coeffs[:,np.newaxis])
+    ckn = bn - 1j*ks*ns*theta
+    
+    #ckn  = np.sqrt(factorial(ns)) / eps** ns * coeffs[:,np.newaxis] * np.exp(-1j*ks*ns*theta)
+    ck = logsumexp(ckn, axis =0)
+    #ck = np.sum(ckn, axis = 0)
+   
     ns, ms = gen_indices(N)
     alphas = eps * np.exp(1j * theta * ns)
-    betas = eps * np.exp(1j* theta * ms)
+    betas = eps * np.exp(1j * theta * ms)
     
     means, cov, d = outer_coherent(alphas,betas)
 
-    weights = d
-    weights[N+1:] *=2 #For the real parts
-    weights[0:N+1] *= np.abs(ck)**2
-    weights[N+1:] *= ck[ns[N+1:]] * np.conjugate(ck[ms[N+1:]])
+    log_weights = d
+    log_weights[N+1:] += np.log(2) #For the real parts
+    log_weights[0:N+1] += 2 * ck.real
+    log_weights[N+1:] += ck[ns[N+1:]] + np.conjugate(ck[ms[N+1:]])
+    #log_weights[N+1:] += np.log(ck[ns[N+1:]] * np.conjugate(ck[ms[N+1:]]))
+
+    #Norm = np.sum(np.exp(log_weights).real)
     
-    weights /= np.sum(weights.real)
+    #log_weights -= np.log(Norm)
         
-    return means.T, cov, weights, N+1, np.sum(weights.real)
+    return means.T, cov, log_weights, N+1
 
 def norm_coherent(N, eps):
     """REVISE
@@ -165,12 +182,12 @@ def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
     cov = 0.5*hbar * np.eye(2)
     means = []
     theta = 2*np.pi/(N+1)
-    weights = []
+    log_weights = []
     if not eps:
         eps = eps_fock_coherent(N, infid)
 
     if fast: 
-        weights_re = []
+        log_weights_re = []
         means_re = []
     
     for k in np.arange(N+1):
@@ -181,22 +198,22 @@ def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
             muk, cov, ck = outer_coherent(alpha, alpha)
         
             means.append(muk)
-            weights.append(ck)
+            log_weights.append(ck)
 
         for l in np.arange(N+1):
             if fast:
                 if l>k: 
                     beta = eps * np.exp(1j * theta * l)
                     mukl, cov, ckl = outer_coherent(alpha, beta)
-                    ckl *= np.exp(-theta * 1j* N*(k-l))
+                    ckl += -theta * 1j* N*(k-l)
                     means_re.append(mukl)
-                    weights_re.append(2*ckl)
+                    log_weights_re.append(ckl+np.log(2))
             else:
                 beta = eps * np.exp(1j * theta * l)
                 mukl, cov, ckl = outer_coherent(alpha, beta)
-                ckl *= np.exp(-theta * 1j* N*(k-l))
+                ckl += -theta * 1j* N*(k-l)
                 means.append(mukl)
-                weights.append(ckl)
+                log_weights.append(ckl)
                 
     if N == 0:
         means = []
@@ -204,25 +221,27 @@ def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
         
     if fast:
         k = len(weights)
-        weights = np.concatenate([weights, weights_re], axis = 0)
+        log_weights = np.concatenate([log_weights, log_weights_re], axis = 0)
         means = np.concatenate([means, means_re], axis = 0)
 
     else:
-        weights = np.array(weights)
+        log_weights = np.array(log_weights)
         means = np.array(means)
     
-    factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
+    #factor = factorial(N)/(N+1)**2 * np.exp(eps**2)/eps**(2*N)
 
-    weights *= factor
+    #weights += np.log(factor)
+    
 
     if fast:
-        if norm:
-            weights /= np.sum(weights.real) #renormalize
-        return means, cov, weights, k, np.sum(weights.real)
+         #   Norm = np.sum(np.exp(log_weights).real)
+            
+        return means, cov, log_weights, k
     else:
         if norm:
-            weights /= np.sum(weights)
-        return means, cov, weights, len(weights), np.sum(weights)
+         #   Norm = np.sum(np.exp(log_weights))
+            log_weights -= logsumexp(log_weights)
+        return means, cov, log_weights, len(log_weights)
         
 def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
@@ -236,6 +255,7 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
         cov (array): vacuum cov
         weights_new (ndarray): list of weights 
     """
+    raise ValueError('Not fixed for log weights form (log(-1) = 1j*np.pi)')
     def get_ck(k, N, coeffs, eps):
         """Get coefficient ck in Eq (22) in http://arxiv.org/abs/2305.17099 for a superposition of Fock states
     
@@ -253,11 +273,11 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
             
         return ck
     
-    weights = []
+    log_weights = []
     means = []
 
     if fast: 
-        weights_re = []
+        log_weights_re = []
         means_re = []
 
     N = len(coeffs)-1
@@ -277,7 +297,7 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
         if fast: 
             mui, cov, ci = outer_coherent(alpha, alpha)
             means.append(mui)
-            weights.append(np.abs(cn)**2 *ci)
+            log_weights.append(np.log(np.abs(cn)**2)+ci)
         
         for j, cm in enumerate(ck):
             if fast:
@@ -286,24 +306,26 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
                     beta = eps * np.exp(1j * theta * j) 
                     muij, cov, cij = outer_coherent(alpha, beta)
         
-                    weights_re.append(2*cn*cm*cij)
+                    log_weights_re.append(np.log(2*cn*cm)+cij)
                     means_re.append(muij)
             else:
                 cm = cm.conjugate()
                 beta = eps * np.exp(1j * theta * j) 
                 muij, cov, cij = outer_coherent(alpha, beta)
     
-                weights.append(cn*cm*cij)
+                log_weights.append(np.log(cn*cm)+cij)
                 means.append(muij)
     if fast:
-        k = len(weights)
-        weights = np.concatenate([weights, weights_re], axis = 0)
+        k = len(log_weights)
+        log_weights = np.concatenate([log_weights, log_weights_re], axis = 0)
         means = np.concatenate([means, means_re], axis = 0)
-        weights /= np.sum(weights.real)
-        return means, cov, weights, k, np.sum(weights.real)
+        Norm = np.sum(np.exp(log_weights).real)
+        log_weights -= np.log(Norm)
+        return means, cov, log_weights, k, np.sum(np.exp(log_weights).real)
     else:
-        weights /=np.sum(weights)
-        return np.array(means), cov, np.array(weights), len(weights), np.sum(weights)
+        Norm = np.sum(np.exp(log_weights))
+        log_weights -= np.log(Norm)
+        return np.array(means), cov, np.array(log_weights), len(log_weights)
 
 # |N><M| operator
 # ---------------------------------------
@@ -340,7 +362,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
     means = []
     theta_N = 2*np.pi/(N+1)
     theta_M = 2*np.pi/(M+1)
-    weights = []
+    log_weights = []
 
     
     for k in np.arange(N+1):
@@ -357,11 +379,10 @@ def fock_outer_coherent(N, M, eps1, eps2):
             means.append(mulk)
             
 
-            clk = np.exp(-theta_N * 1j* N*k)*np.exp(theta_M *1j* l* M) * np.exp(-0.5* (Im_k - Im_l)**2 - 0.5 *(Re_k - Re_l)**2
-                                                     -1j*Im_l*Re_k + 1j*Im_k*Re_l )
-            weights.append(clk)
+            clk = -theta_N * 1j* N*k +theta_M *1j* l* M + -0.5* (Im_k - Im_l)**2 - 0.5 *(Re_k - Re_l)**2-1j*Im_l*Re_k + 1j*Im_k*Re_l 
+            log_weights.append(clk)
             
-    weights = np.array(weights)
+    log_weights = np.array(log_weights)
 
     #Here do a small simplifcation of the factorial in order to be able to compute the sqrt
     K = N - M
@@ -372,11 +393,11 @@ def fock_outer_coherent(N, M, eps1, eps2):
         
     #factor = np.sqrt(factorial(N)*factorial(M))/((N+1)*(M+1)) * np.exp(eps1**2/2+eps2**2/2)/(eps1**N * eps2**M)
     
-    factor = factorial_simplify/((N+1)*(M+1)) * np.exp(eps1**2/2+eps2**2/2)/(eps1**N * eps2**M)
+    #factor = factorial_simplify/((N+1)*(M+1)) * np.exp(eps1**2/2+eps2**2/2)/(eps1**N * eps2**M)
 
-    weights *= factor
+    #weights *= factor
     means = np.array(means)
-    weights = np.array(weights)
+    log_weights = np.array(weights)
     
     if comp:
         means = means.conjugate()
@@ -387,19 +408,21 @@ def fock_outer_coherent(N, M, eps1, eps2):
     norm2 = norm_coherent(M, eps2)
     #print(f"{N,M}", 1-1/norm1, 1-1/norm2, eps1, eps2)
 
-    weights /= np.sum(weights) 
+    Norm = np.sum(np.exp(log_weights))
+    
+    log_weights -= np.log(Norm)
 
     
-    
-    return means, cov, weights
+    return means, cov, log_weights
 
-def outer_sqz_coherent(r, alpha, beta, MP = False):
+def outer_sqz_coherent(r, alpha, beta):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
     describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
     in Appendix A of https://arxiv.org/abs/2103.05530.
     r>0: Squeezing in x
     r<0: Squeezing in p
     """
+
     cov = hbar /2 * np.array([[np.exp(-2*r),0],[0,np.exp(2*r)]])
     gamma = alpha/(np.cosh(r)+np.sinh(r))
     delta = beta/(np.cosh(r)+np.sinh(r))
@@ -414,21 +437,14 @@ def outer_sqz_coherent(r, alpha, beta, MP = False):
                                         im_gamma + im_delta
                                         + 1j * np.exp(2*r)* (re_delta - re_gamma)])
 
-    
-    if MP:
-        coeff = mp.exp( -0.5 * mp.exp(-2*r)* (im_gamma - im_delta) **2
-                       - 0.5 * mp.exp(2*r)*(re_gamma - re_delta) **2
-                       - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
-    else:
+   
 
-        coeff = np.exp( -0.5 * np.exp(-2*r)* (im_gamma - im_delta) **2
-                       - 0.5 * np.exp(2*r)*(re_gamma - re_delta) **2
-                       - 1j * im_delta * re_gamma + 1j * im_gamma * re_delta)
+    log_coeff =  -0.5 * np.exp(-2*r)* (im_gamma - im_delta) **2- 0.5 * np.exp(2*r)*(re_gamma - re_delta) **2- 1j * im_delta * re_gamma + 1j * im_gamma * re_delta
 
-    return mu, cov, coeff
+    return mu, cov, log_coeff
 
-def gen_sqz_cat_coherent(r, alpha, k, MP = False, fast = False):
-    """Prepare a squeezed cat, requires a higher precision with mp.math
+def gen_sqz_cat_coherent(r, alpha, k, fast = False):
+    """Prepare a squeezed cat
 
     Args: 
         r : squeezing of the cat
@@ -438,35 +454,30 @@ def gen_sqz_cat_coherent(r, alpha, k, MP = False, fast = False):
         tuple
     """
     if fast: 
-        params = [(1, alpha,alpha), (1,-alpha,-alpha), (2*(-1)**k,alpha,-alpha)]
+        params = [(1.0, alpha,alpha), (1.0,-alpha,-alpha), (2.0*(-1)**k,alpha,-alpha)]
     else:
         params = [(1, alpha,alpha), (1,-alpha,-alpha), ((-1)**k,alpha,-alpha), ((-1)**k,-alpha,alpha)]
         
     means = []
-    weights = []
-    
+    log_weights = []
+
     for a in params:
-        means_a, cov, weights_a = outer_sqz_coherent(r, a[1], a[2],MP)
+        means_a, cov, log_weights_a = outer_sqz_coherent(r, a[1], a[2])
         means.append(means_a)
-        weights.append(weights_a*a[0])
+        log = log_weights_a + np.log(np.abs(a[0]))
+        if np.sign(a[0]) == -1:
+            log += 1j*np.pi #For negative coefficients
+        
+        log_weights.append(log)
 
     means = np.array(means)
-    weights = np.array(weights)
+    log_weights = np.array(log_weights)
     
     if fast:
-        if MP:
-            weights /= mp.fsum(weights.real)
-            return means, cov, weights, 2, mp.fsum(weights.real)
-        else:
-            weights /= np.sum(weights.real)
-            return means, cov, weights, 2, np.sum(weights.real)
+      
+        return means, cov, log_weights, 2
     else:
-        if MP:
-            weights /= mp.fsum(weights)
-            return means, cov, weights, len(weights), mp.fsum(weights)
-        else:
-            weights /= np.sum(weights)
-            return means, cov, weights, len(weights), np.sum(weights)
+        return means, cov, log_weights, len(log_weights)
 
 
 def gen_fock_bosonic(n, r=0.05):
@@ -513,7 +524,35 @@ def gen_fock_bosonic(n, r=0.05):
 
 
     return means, covs, weights, len(weights), np.sum(weights)
+    
+def gen_fock_log(n, r = 0.05):
 
+    if 1 / r**2 < n:
+            raise ValueError(f"The parameter 1 / r ** 2={1 / r ** 2} is smaller than n={n}")
+    # A simple function to calculate the parity
+    parity = lambda n: 1 if n % 2 == 0 else -1
+    # All the means are zero
+    means = np.zeros([n + 1, 2])
+    covs = np.array(
+        [
+            #0.5
+            1
+            #* sf.hbar
+            * np.identity(2)
+            * (1 + (n - j) * r**2)
+            / (1 - (n - j) * r**2)
+            for j in range(n + 1)
+        ]
+    )
+    log_weights = np.array(
+        [np.log(1 - n * (r**2)) - np.log(1 - (n - j) * (r**2)) + np.log(comb(n,j)) + 1j*np.pi*(j%2)
+            #(1 - n * (r**2)) / (1 - (n - j) * (r**2)) * comb(n, j) * parity(j)
+            for j in range(n + 1)
+        ],
+    )
+
+    log_norm = logsumexp(log_weights)
+    return means, covs, log_weights-log_norm, len(log_weights)
 
 def mu_to_alphas(mu):
     alpha = 0.5*(mu[0].real-mu[1].imag)+1j*0.5*(mu[0].imag+mu[1].real)

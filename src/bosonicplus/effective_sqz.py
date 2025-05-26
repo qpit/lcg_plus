@@ -5,8 +5,9 @@ from thewalrus.symplectic import sympmat, xxpp_to_xpxp
 from bosonicplus.conversions import dB_to_r, Delta_to_dB
 
 from mpmath import mp
+from scipy.special import logsumexp
 
-def char_fun(state, alpha, MP = False):
+def char_fun(state, alpha):
     """
     Single mode characteristic function when state is a sum of Gaussians for hbar = 2
     From Eq. 2.85 of Anders Bjerrum's PhD thesis and Eq. 20 of Weebrook Gaussian QI
@@ -23,7 +24,7 @@ def char_fun(state, alpha, MP = False):
         #raise ValueError('mpmath and reduced gaussian method not compatible yet. Use full state description.')
     if state.num_covs != 1:
         raise ValueError('Not sure if function works for states with several covs.')
-    means, covs, weights = state.means, state.covs, state.weights
+    means, covs, log_weights = state.means, state.covs, state.log_weights
 
     L = np.array([alpha.real, alpha.imag]) 
 
@@ -37,57 +38,31 @@ def char_fun(state, alpha, MP = False):
     L = L[np.newaxis, :]
     Lsymp = Lsymp[np.newaxis,:]
     
-    exparg1 = np.einsum("...j,...jk,...k", L, Omg @ covs @ Omg.T, L)
-    exparg2 = np.einsum("...jk,...k", means, Lsymp)   
+    exparg1 = -0.5 * np.einsum("...j,...jk,...k", L, Omg @ covs @ Omg.T, L)
+    exparg2 = np.einsum("...jk,...k", means, Lsymp)[0]
+    
     
     if state.num_k != state.num_weights: 
+        #raise valueError('Please revise the function in fast rep.')
         k = state.num_k
-        if MP:
-            #print('exparg1', exparg1[0])
-            #c1 = mp.exp(-1/2 * exparg1[0])
-            #print('c1', c1)
-            #ck1 = np.array([mp.exp(1j * i) for i in exparg2[0,0:k]])
-            #print('ck1', ck1)
-            #ck2 = np.array([mp.exp(1j * i) for i in exparg2[0,k:]])
-            #print('ck2', ck2)
-            #ck3 = np.array([mp.exp(1j * i) for i in exparg2[0,k:].conjugate()])
-            #print('ck3', ck3)
 
-            #charf = c1 * mp.fdot(weights[0:k], ck1)
-            #print('cf',charf)
-            #charf += 0.5* c1 * mp.fdot(weights[k:], ck2)
-            #print('cf2',c1 * mp.fdot(weights[k:], ck2))
-            #charf += 0.5* c1 * mp.fdot(weights[k:].conjugate() ,ck3)
-            #print('cf3',c1 * mp.fdot(weights[k:].conjugate(), ck3))
-            
-            
-            charf = np.array([mp.exp(-1/2*exparg1[0] + 1j*i) for i in exparg2[0,:]])
-            return mp.re(mp.fdot(weights, charf))/state.norm.real     
-            
-        else:
-            
-            c1 = np.exp(-1/2 * exparg1)
-            ck1 = np.exp(1j * exparg2[0,0:k])
-            ck2 = np.exp(1j * exparg2[0,k:])
-            ck3 = np.exp(1j * exparg2[0,k:].conjugate())
-            
-            charf = c1 * np.sum(weights[0:k]*ck1)
-            charf += c1 * np.sum(weights[k:]*ck2)
-            #charf += 0.5 * c1 * np.sum(weights[k:]*ck2)
-            #charf += 0.5 * c1 * np.sum(weights[k:].conjugate()*ck3)
-            #charf = np.exp(-1/2*exparg1[0] + 1j*exparg2[0,:])
-            #charf = np.sum(weights* charf)
-            return charf/state.norm
-    else:
-        if MP:
-            charf = np.array([mp.exp(-1/2*exparg1[0] + 1j*i) for i in exparg2[0,:]])
-            return mp.fdot(weights, charf)/state.norm     
-        else: 
-            charf = np.exp(-1/2*exparg1[0] + 1j*exparg2[0,:])
-            charf = np.sum(weights* charf)
-            return charf/state.norm
+        ck1 = 1j * exparg2[0:k]
+        ck2 = 1j * exparg2[k:]
+        ck3 = 1j * exparg2[k:].conjugate()
+
+        charfsum = np.concatenate((log_weights[0:k]+ck1, log_weights[k:]+ck2 - np.log(2), np.conjugate(log_weights[k:])+ck3 - np.log(2)))
+        #charfsum = np.concatenate((log_weights[0:k]+ck1, log_weights[k:]+ck2))
         
-def effective_sqz(state, lattice : str, MP = False):
+        charf = np.exp(logsumexp(charfsum+exparg1))
+        
+        return charf/state.norm
+    else:
+        exparg = exparg1 + 1j*exparg2
+        #print(log_weights + exparg)
+        charf = np.exp(logsumexp(log_weights + exparg))
+        return charf/state.norm
+            
+def effective_sqz(state, lattice : str):
     """Get the effective squeezing of a state according to the Terhal definition
 
     Args:
@@ -131,21 +106,21 @@ def effective_sqz(state, lattice : str, MP = False):
     elif lattice == 'hsp': 
         alpha = np.sqrt(np.pi)/2 * (kappa2 + 1j*kappa1)
 
-    f1 = char_fun(state, alpha, MP)
-    f2 = char_fun(state, -alpha, MP)
+    f1 = char_fun(state, alpha)
+    f2 = char_fun(state, -alpha)
 
-    if MP == True:
+    #if MP == True:
         
         
-        D1 = mp.sqrt(-2/np.abs(alpha)**2*mp.log(mp.fabs(f1)))
-        D2 = mp.sqrt(-2/np.abs(alpha)**2*mp.log(mp.fabs(f2)))
-        Delta = 0.5 * (D1+D2)
-    else:
+        #D1 = mp.sqrt(-2/np.abs(alpha)**2*mp.log(mp.fabs(f1)))
+        #D2 = mp.sqrt(-2/np.abs(alpha)**2*mp.log(mp.fabs(f2)))
+        #Delta = 0.5 * (D1+D2)
+    #else:
         
-        D1 = np.sqrt(-2/np.abs(alpha)**2*np.log(np.abs(f1)))
-        D2 = np.sqrt(-2/np.abs(alpha)**2*np.log(np.abs(f2)))
-        
-        Delta = 0.5 * (D1+D2)
+    D1 = np.sqrt(-2/np.abs(alpha)**2*np.log(np.abs(f1)))
+    D2 = np.sqrt(-2/np.abs(alpha)**2*np.log(np.abs(f2)))
+    
+    Delta = 0.5 * (D1+D2)
     
 
         
@@ -226,7 +201,7 @@ def Q_expval1(state, type, N=1, MP = False):
 
                            
 
-def Q_expval(state, lattice, N=1, MP = False):
+def Q_expval(state, lattice, N=1):
     """Calculate the expectation value of the Q operator defined according to a GKP lattice specified by which
     and according to the grid scaling N
     To do: review against the definitions in states.gkp_squeezing
@@ -249,33 +224,33 @@ def Q_expval(state, lattice, N=1, MP = False):
         alphax = np.sqrt(2 * np.pi) * np.sqrt(N)
         alphap = np.sqrt(np.pi/2) * np.sqrt(N)
 
-        expval = 4*char_fun(state, 0, MP) -  ( char_fun(state, alphax, MP) 
-                                                   + char_fun(state,-alphax,  MP) 
-                                                   + char_fun(state, 1j*alphap, MP) 
-                                                   + char_fun(state, -1j*alphap, MP))
+        expval = 4*char_fun(state, 0) -  ( char_fun(state, alphax) 
+                                                   + char_fun(state,-alphax) 
+                                                   + char_fun(state, 1j*alphap) 
+                                                   + char_fun(state, -1j*alphap))
                                                                                                     
     elif lattice == '1':
         alphax = np.sqrt(2 * np.pi) * np.sqrt(N)
         alphap = np.sqrt(np.pi/2) * np.sqrt(N)
         
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, alphax, MP) 
-                                                   +char_fun(state,-alphax, MP) 
-                                                   - char_fun(state, 1j*alphap, MP) 
-                                                   - char_fun(state, -1j*alphap, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, alphax) 
+                                                   + char_fun(state,-alphax) 
+                                                   - char_fun(state, 1j*alphap) 
+                                                   - char_fun(state, -1j*alphap))
         
     elif lattice == 's0': #symmetric zero
         alpha = np.sqrt(np.pi)* np.sqrt(N)
-        expval = 4*char_fun(state, 0, MP) -  ( char_fun(state, alpha, MP) 
-                                                   + char_fun(state,-alpha, MP) 
-                                                   + char_fun(state, 1j*alpha, MP) 
-                                                   + char_fun(state, -1j*alpha, MP))
+        expval = 4*char_fun(state, 0) -  ( char_fun(state, alpha) 
+                                                   + char_fun(state,-alpha) 
+                                                   + char_fun(state, 1j*alpha) 
+                                                   + char_fun(state, -1j*alpha))
         
     elif lattice == 's1': #symmetric one
         alpha = np.sqrt(np.pi)* np.sqrt(N)
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, alpha, MP) 
-                                                   + char_fun(state,-alpha, MP) 
-                                                   - char_fun(state, 1j*alpha, MP) 
-                                                   - char_fun(state, -1j*alpha, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, alpha) 
+                                                   + char_fun(state,-alpha) 
+                                                   - char_fun(state, 1j*alpha) 
+                                                   - char_fun(state, -1j*alpha))
 
     elif lattice == 'h0': 
         kappa1 = 3**(-1/4) + 3**(1/4)
@@ -284,10 +259,10 @@ def Q_expval(state, lattice, N=1, MP = False):
         gamma = np.sqrt(np.pi/2)*(kappa1 +1j*kappa2)* np.sqrt(N)
         delta = np.sqrt(np.pi/8)*(kappa2 +1j*kappa1)* np.sqrt(N)
         
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, gamma, MP) 
-                                                   + char_fun(state,-gamma, MP) 
-                                                   + char_fun(state, delta, MP) 
-                                                   + char_fun(state, -delta, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, gamma) 
+                                                   + char_fun(state,-gamma) 
+                                                   + char_fun(state, delta) 
+                                                   + char_fun(state, -delta))
 
     elif lattice == 'h1': 
         kappa1 = 3**(-1/4) + 3**(1/4)
@@ -296,10 +271,10 @@ def Q_expval(state, lattice, N=1, MP = False):
         gamma = np.sqrt(np.pi/2)*(kappa1 + 1j*kappa2)* np.sqrt(N)
         delta = np.sqrt(np.pi/8)*(kappa2 + 1j*kappa1)* np.sqrt(N)
         
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, gamma, MP) 
-                                                   + char_fun(state,-gamma, MP) 
-                                                   - char_fun(state, delta, MP) 
-                                                   - char_fun(state, -delta, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, gamma) 
+                                                   + char_fun(state,-gamma) 
+                                                   - char_fun(state, delta) 
+                                                   - char_fun(state, -delta))
 
     elif lattice == 'hs1': 
         kappa1 = 3**(-1/4) + 3**(1/4)
@@ -308,10 +283,10 @@ def Q_expval(state, lattice, N=1, MP = False):
         gamma = np.sqrt(np.pi)/2*(kappa1 + 1j*kappa2)* np.sqrt(N)
         delta = np.sqrt(np.pi)/2*(kappa2 + 1j*kappa1)* np.sqrt(N)
         
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, gamma, MP) 
-                                                   + char_fun(state,-gamma, MP) 
-                                                   - char_fun(state, delta, MP) 
-                                                   - char_fun(state, -delta, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, gamma) 
+                                                   + char_fun(state,-gamma) 
+                                                   - char_fun(state, delta) 
+                                                   - char_fun(state, -delta))
 
     elif lattice == 'hs0': 
         kappa1 = 3**(-1/4) + 3**(1/4)
@@ -320,10 +295,10 @@ def Q_expval(state, lattice, N=1, MP = False):
         gamma = np.sqrt(np.pi)/2*(kappa1 + 1j*kappa2)* np.sqrt(N)
         delta = np.sqrt(np.pi)/2*(kappa2 + 1j*kappa1)* np.sqrt(N)
         
-        expval = 4*char_fun(state, 0, MP) - ( char_fun(state, gamma, MP) 
-                                                   + char_fun(state,-gamma, MP) 
-                                                   + char_fun(state, delta, MP) 
-                                                   + char_fun(state, -delta, MP))
+        expval = 4*char_fun(state, 0) - ( char_fun(state, gamma) 
+                                                   + char_fun(state,-gamma) 
+                                                   + char_fun(state, delta) 
+                                                   + char_fun(state, -delta))
     
     elif lattice == 'hpetr': #hexagonal (does it work?)
         kappa_p = np.sqrt(np.pi/8)*(3**(1/4) + 3**(-1/4))
@@ -332,9 +307,9 @@ def Q_expval(state, lattice, N=1, MP = False):
         alpha_x = np.sqrt(2)*(kappa_m +1j*kappa_p)* np.sqrt(N)
         alpha_p = np.sqrt(2)*(kappa_p +1j*kappa_m)* np.sqrt(N)
         
-        expval = 4 * char_fun(state, 0, MP) - ( char_fun(state, alpha_x, MP) 
-                                                   + char_fun(state,-alpha_x, MP) 
-                                                   + char_fun(state, alpha_p, MP) 
-                                                   + char_fun(state, -alpha_p, MP))
+        expval = 4 * char_fun(state, 0) - ( char_fun(state, alpha_x) 
+                                                   + char_fun(state,-alpha_x) 
+                                                   + char_fun(state, alpha_p) 
+                                                   + char_fun(state, -alpha_p))
 
     return expval/2 #Norm wrt Gaussian limit

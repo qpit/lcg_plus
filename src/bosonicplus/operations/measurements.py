@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import comb
 from bosonicplus.states.coherent import gen_fock_coherent, gen_fock_bosonic, gen_fock_coherent_old, gen_fock_log
-from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi, chop_in_blocks_multi_v2, chop_in_blocks_vector_multi_v2
 from mpmath import mp
 from scipy.special import logsumexp
 hbar = 2
@@ -26,7 +26,7 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     """
     means, covs, log_weights = data
     if k2: 
-        means_f, sigma_f, log_weights_f, k1 = gen_fock_coherent(n, inf,fast=True)
+        means_f, sigma_f, log_weights_f, k1 = gen_fock_coherent(n, inf, fast=True)
     else:
         #means_f, sigma_f, log_weights_f, k1 = gen_fock_coherent_old(n, inf)
         means_f, sigma_f, log_weights_f, k1 = gen_fock_coherent(n, inf, fast=False)
@@ -56,12 +56,14 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
     reweights_exp_arg = -0.5 * np.einsum("...j,...jk,...k", delta_B, C_inv[np.newaxis,:,:], delta_B)
     #print('Shape reweights_exp_arg' ,reweights_exp_arg.shape)
 
-    #Consider not bothering with the norm.
-    prefactor = -0.5 * np.log(np.linalg.det(2*np.pi*C))
+    #Norm factor
+    prefactor = np.log(2*np.pi*hbar / np.sqrt(np.linalg.det(2*np.pi* C)))
     #Norm = (2*np.pi*hbar)/ (np.sqrt(np.linalg.det( 2* np.pi * C))) 
     
     #reweights = log_weights_f[np.newaxis,:] + log_weights[:,np.newaxis] - Norm + reweights_exp_arg
     reweights = log_weights_f[np.newaxis,:] + log_weights[:,np.newaxis] + reweights_exp_arg + prefactor
+    #reweights = log_weights_f[np.newaxis,:] + log_weights[:,np.newaxis] + reweights_exp_arg 
+
 
     if k2 and k2>1:
         
@@ -71,6 +73,7 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):
         
         #reweights_special = log_weights_f[np.newaxis,k1:]+np.conjugate(log_weights[k2:,np.newaxis]) - Norm + re_weights_exp_arg_special
         reweights_special = log_weights_f[np.newaxis,k1:]+np.conjugate(log_weights[k2:,np.newaxis]) + reweights_exp_arg_special + prefactor
+        #reweights_special = log_weights_f[np.newaxis,k1:]+np.conjugate(log_weights[k2:,np.newaxis]) + reweights_exp_arg_special
 
         #Building the new data tuple with the k1*k2 normal gaussians appearing first
         
@@ -198,7 +201,7 @@ def project_ppnrd_thermal(data, mode, n, M):
     sigma_A_prime = sigma_A_prime.reshape([M*N,L,L])
 
     reweights_exp_arg = -0.5 * np.einsum("...j,...jk,...k", -r_B[:,np.newaxis,:], C_inv, -r_B[:,np.newaxis,:]) #OBS: mu_povm are zero
-    prefactor = -0.5 * np.log( np.linalg.det(C))
+    prefactor = np.log( 2*np.pi*hbar/np.sqrt(np.linalg.det(2*np.pi*C)))
     #Norm = (2*np.pi*hbar) / (np.sqrt(np.linalg.det( 2* np.pi * C))) 
      
     #new_weights = log_weights_povm[np.newaxis,:] + log_weights[:,np.newaxis] - Norm + reweights_exp_arg
@@ -244,7 +247,7 @@ def project_fock_thermal(data, mode, n ,r = 0.05):
     sigma_A_prime = sigma_A_prime.reshape([M*N,L,L])
 
     reweights_exp_arg = -0.5 * np.einsum("...j,...jk,...k", -r_B[:,np.newaxis,:], C_inv, -r_B[:,np.newaxis,:]) #OBS: mu_povm are zero
-    prefactor = -0.5 * np.log(np.linalg.det(2*np.pi*C))
+    prefactor = np.log(2*np.pi*hbar/np.sqrt(np.linalg.det(2*np.pi*C)))
     #Norm = (2*np.pi*hbar) / (np.sqrt(np.linalg.det( 2* np.pi * C))) 
     #new_weights = weights_povm[np.newaxis,:] + weights[:,np.newaxis] - Norm + reweights_exp_arg
     
@@ -319,6 +322,119 @@ def project_homodyne(data, mode, result, k, MP = False):
     data_A = r_A_prime, sigma_A_prime, reweights, k
     
     return data_A
+
+
+#Gradients
+#-------------------------------------
+
+def project_fock_coherent_gradients(n, data, data_partial, mode, inf=1e-4):  
+    """Returns data tuple after projecting mode on fock state n (in coherent approx)
+    
+    Args:
+        n (int): photon number
+        data (tuple) : [means, covs, weights]
+        mode (int): mode index that is measured with PNRD
+        inf (float): infidelity of the fock approx
+        
+    Returns:
+        data_A (tuple): 
+        prob (float): probability of the measurement
+    """
+    means, covs, log_weights, num_k = data
+
+    if num_k != len(log_weights):
+        raise ValueError('Gradients not compatible with reduced Gauss form.')
+    
+        
+    means_f, sigma_f, log_weights_f, k1 = gen_fock_coherent(n, inf, fast=False)
+    modes = [mode]
+
+    mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1))
+    
+    sigma_A, sigma_AB, sigma_B = chop_in_blocks_multi(covs, mode_ind)
+    r_A, r_B = chop_in_blocks_vector_multi(means, mode_ind)
+
+    #New array sizes
+    M = len(means_f) #Number of weights in POVM
+    N = len(r_A) #Number of weights in state
+    L = len(r_A[0,:]) #Dimension of output vector (number of modes after measurement)
+    
+    C = sigma_B + sigma_f
+    C_inv = np.linalg.inv(C)
+
+    sigma_ABC = sigma_AB @ C_inv 
+    sigma_A_tilde = sigma_ABC @ sigma_AB.transpose(0, 2, 1)
+    sigma_A_prime = sigma_A - sigma_A_tilde
+    
+
+    delta_B = means_f[np.newaxis,:,:] - r_B[:,np.newaxis,:]
+    
+    r_A_prime = r_A[:,np.newaxis,:] + np.einsum("...jk,...k", sigma_ABC, delta_B) 
+
+    reweights_exp_arg = -0.5 * np.einsum("...j,...jk,...k", delta_B, C_inv[np.newaxis,:,:], delta_B)
+
+  
+    prefactor = np.log(2*np.pi*hbar/np.sqrt(np.linalg.det(2*np.pi*C)))
+    
+    reweights = log_weights_f[np.newaxis,:] + log_weights[:,np.newaxis] + reweights_exp_arg + prefactor
+
+    reweights = reweights.reshape([M*N])
+    r_A_prime = r_A_prime.reshape([M*N,L])
+
+
+    ### Gradient computation ####
+
+    means_partial, covs_partial, weights_partial = data_partial
+    G = covs_partial.shape[0] #Number of gradients
+    
+    partial_sigma_A, partial_sigma_AB, partial_sigma_B = chop_in_blocks_multi_v2(covs_partial, mode_ind)
+    partial_mu_A, partial_mu_B = chop_in_blocks_vector_multi_v2(means_partial, mode_ind)
+    
+    #Precalculate some stuff
+
+    partial_sigma_B_inv = -C_inv @ partial_sigma_B @ C_inv
+
+    partial_sigma_B_inv_delta_B = np.einsum("...jk,...k", partial_sigma_B_inv[:,np.newaxis,:,:], delta_B[np.newaxis,:,:])
+    
+    C_inv_delta_B = np.einsum("...jk,...k", C_inv, delta_B)
+
+    #Update the partial derivative of the displacement vector
+
+    partial_AB = np.einsum("...jk,...k", partial_sigma_AB[:,np.newaxis,:,:], C_inv_delta_B[np.newaxis,:,:])
+    partial_Cinv = np.einsum("...jk,...k", sigma_AB, partial_sigma_B_inv_delta_B)
+    partial_muB = np.einsum("...jk,...k", sigma_ABC, partial_mu_B)
+
+    partial_mu_prime = partial_mu_A[:,:,np.newaxis,:] + partial_AB + partial_Cinv - partial_muB[:,:,np.newaxis,:]
+    partial_mu_prime = partial_mu_prime.reshape([G, M*N, L])
+  
+
+    #Update the partial derivative of covariance matrix
+
+    partial_sigma_prime = partial_sigma_A + (- partial_sigma_AB @ sigma_ABC.transpose([0,2,1])[np.newaxis,:,:,:]
+                                             - sigma_AB[np.newaxis,:,:,:] @ partial_sigma_B_inv @ sigma_AB.transpose([0,2,1])[np.newaxis,:,:,:]
+                                             - sigma_ABC[np.newaxis,:,:,:] @ partial_sigma_AB.transpose([0,1,3,2]))
+
+    #Weights of partial derivatives
+    partial_muB = np.einsum("...j,...j", partial_mu_B[:,:, np.newaxis,:], C_inv_delta_B[np.newaxis,:,:])
+
+    delta_B_C_inv_delta_B = 0.5 * np.einsum("...j,...j", delta_B[np.newaxis,:,:], partial_sigma_B_inv_delta_B)
+   
+
+    new_weights_partial = partial_muB - delta_B_C_inv_delta_B
+
+    prefactor = -0.5 * np.trace(C_inv @ partial_sigma_B, axis1 = 2, axis2 = 3) #Just a number
+    
+    
+    weights_partial_new = weights_partial[:,:,np.newaxis] + new_weights_partial
+
+    weights_partial_new=weights_partial_new.reshape([G, N*M]) + prefactor
+
+
+    #Return data tuples
+    data_A = r_A_prime, sigma_A_prime, reweights, N*M
+    data_partial = partial_mu_prime, partial_sigma_prime, weights_partial_new
+        
+    return (data_A), (data_partial)
 
 
     

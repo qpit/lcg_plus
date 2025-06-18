@@ -1,7 +1,7 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
-from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal
+from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
 from bosonicplus.states.wigner import Gauss
 from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
 from bosonicplus.states.reduce import reduce, reduce_log
@@ -63,6 +63,13 @@ class State:
             
         self.num_covs = len(self.covs)
         self.weights = np.exp(self.log_weights)
+
+    def update_gradients(self, new_gradients : tuple):
+        """Insert a custom gradient tuple. Overrides any existing gradient data.
+        """
+        
+        self.means_partial, self.covs_partial, self.log_weights_partial = new_gradients
+        
 
     def normalise(self):
         r"""Calculate the norm by adding the weights together
@@ -356,6 +363,36 @@ class State:
         
         #self.norm = prob
 
+    def post_select_fock_coherent_gradients(self, mode, n, inf = 1e-4, out = False):
+        """Post select on counting n photons in given mode. New state has one less mode, so be careful with indexing.
+    
+        Args: 
+            mode (int) : measured mode index 
+            n (int) : photon number
+    
+        Returns: updates data
+        """
+        #Make sure that ordering is xpxp first
+        if self.ordering != 'xpxp':
+            self.to_xpxp()
+
+        data_in = self.means, self.covs, self.log_weights, self.num_k
+        data_partial = self.means_partial, self.covs_partial, self.log_weights_partial
+
+        
+        data_out, data_gradients = project_fock_coherent_gradients(n, data_in, data_partial, mode, inf)
+        
+        self.update_data(data_out)
+        self.update_gradients(data_gradients)
+        
+        self.normalise()
+    
+        if out:
+            print(f'Measuring {n} photons in mode {mode}.')
+            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
+            print('Probability of measurement = {:.3e}'.format(self.norm))
+            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
+
     def post_select_fock_thermal(self, mode, n, r =0.05, out = False):
         #Make sure that ordering is xpxp first
         if self.ordering != 'xpxp':
@@ -446,9 +483,10 @@ class State:
             
         weights = self.weights
         norm = self.norm
+
         
         
-        X, P = np.meshgrid(xvec, pvec, sparse=True)
+        X, P = np.meshgrid(xvec, -pvec, sparse=True) #Use -pvec because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
         
         wigner = 0
         for i, weight_i in enumerate(weights):
@@ -491,7 +529,7 @@ class State:
         means = self.means
         covs = self.covs
         
-        X, P = np.meshgrid(x, x, sparse=False)
+        X, P = np.meshgrid(x, -p, sparse=False) #Use -p because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
         
         Q = np.array([X,P])
             

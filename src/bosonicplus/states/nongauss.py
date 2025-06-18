@@ -2,7 +2,7 @@ import numpy as np
 from math import factorial
 from bosonicplus.base import State
 from .coherent import gen_fock_coherent, gen_sqz_cat_coherent, gen_fock_coherent_old
-from .gkp_squeezing import gen_gkp_coherent
+from bosonicplus.gkp_squeezing import gen_gkp_coherent
 from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 
 
@@ -45,7 +45,7 @@ def prepare_gkp_nonlinear_sqz(n, lattice, N = 1, inf = 1e-4, fast=True):
         bosonicplus.base.State
     """
     
-    data_gkp = gen_gkp_coherent(n,lattice,N,inf,fast)
+    data_gkp = gen_gkp_coherent(n, lattice, N, inf, fast)
 
         
     state = State(1)

@@ -116,7 +116,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     # Create the Axes.
     ax = fig.add_subplot(gs[1, 1])
     ax_x = fig.add_subplot(gs[0, 1], sharex = ax)
-    ax_p = fig.add_subplot(gs[1, 0], sharey = ax)
+    ax_p = fig.add_subplot(gs[1, 0])
     cax = fig.add_subplot(gs[1,2])
 
 
@@ -132,35 +132,55 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     #Get scaling and labels
 
     if xp_grid == None:
-        grid = 1.0
+        gridx = 1.0
+        gridp = 1.0
         ax.set_xlabel(r"$x$")
         ax_p.set_ylabel(r"$p$")
 
     elif xp_grid == 'rect':
-        grid = np.sqrt(hbar*np.pi)
+        gridx = np.sqrt(hbar*np.pi)
+        gridp = np.sqrt(hbar*np.pi)
         ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$")
         ax_p.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$")
         
     elif xp_grid =='square':
-        grid = np.sqrt(2*hbar*np.pi )
+        gridx = np.sqrt(2*hbar*np.pi)
+        gridp = np.sqrt(2*hbar*np.pi)
         ax.set_xlabel(r"$x(\sqrt{2\pi\hbar})^{-1}$")
-        ax_p.set_ylabel(r"$p(2\pi\hbar)^{-1}$")
+        ax_p.set_ylabel(r"$p(\sqrt{2\pi\hbar})^{-1}$")
+        
+    elif xp_grid == 'hex':
+        gridx = (3/4)**(1/4) * np.sqrt(hbar*np.pi)
+        gridp = (4/3)**(1/4) * np.sqrt(hbar*np.pi)
+        ax.set_xlabel(r"$x(\sqrt{\frac{\sqrt{3}}{2}\pi\hbar})^{-1}$")
+        ax_p.set_ylabel(r"$p(\sqrt{\frac{2}{\sqrt{3}}\pi\hbar})^{-1}$")
+
+    elif xp_grid == 'hex_square':
+        gridx = (3/4)**(1/4) * np.sqrt(2*hbar*np.pi)
+        gridp = (4/3)**(1/4) * np.sqrt(2*hbar*np.pi)
+        
+        ax.set_xlabel(r"$x(\sqrt{\sqrt{3}\pi\hbar})^{-1}$")
+        ax_p.set_ylabel(r"$p(2\sqrt{\frac{1}{\sqrt{3}}\pi\hbar})^{-1}$")
+        
     
 
     #Make grid for Wigner function and plot it 
-    make_grid(ax, x/grid, p/grid)
-    im = ax.imshow(W, cmap='RdBu', norm = nrm, extent = extent/grid, interpolation = 'bilinear')
-
+    make_grid(ax, x/gridx, p/gridp)
+    extent[0:2]/=gridx
+    extent[2:]/=gridp
+    im = ax.imshow(W, cmap='RdBu', norm = nrm, extent = extent, interpolation = 'bilinear')
+    #ax_p.xaxis.set_inverted(True) 
     ax.set_aspect("equal")
+    
 
     
     #Make the grid for the marginals
-    make_grid(ax_x, x/grid, marginal_x, axis='x')
-    make_grid(ax_p, marginal_p, p/grid, axis='p')
+    make_grid(ax_x, x/gridx, marginal_x, axis='x')
+    make_grid(ax_p, marginal_p, p/gridp, axis='p')
 
     #Plot the marginals
-    ax_x.plot(x/grid, marginal_x, linewidth = lw)
-    ax_p.plot(marginal_p, p/grid, linewidth = lw)
+    ax_x.plot(x/gridx, marginal_x, linewidth = lw)
+    ax_p.plot(marginal_p, p/gridp, linewidth = lw)
     
     ax_x.tick_params(axis = 'x',labelbottom = False)
     #ax_p.set_xticks([0, np.round(np.max(marginal_p),2)])
@@ -170,6 +190,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     ax.set_ylim([-plim,plim])
     ax_x.set_ylim([0, np.max(marginal_x)])
     ax_p.set_xlim([0, np.max(marginal_p)])
+    ax_p.set_ylim([-xlim,xlim])
     #ax_x.set_
     #ax_x.set_yticks([np.min(marginal_x), np.max(marginal_x)])
     #ax_x.set_yticks([])
@@ -182,6 +203,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     ax_x.set_ylabel(r'$P(x)$')
     ax_p.set_xlabel(r'$P(p)$')
     ax_p.invert_xaxis()
+    ax_p.invert_yaxis()
 
     plt.colorbar(im, cax = cax )
     #if title:

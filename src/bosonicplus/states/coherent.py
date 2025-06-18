@@ -85,16 +85,18 @@ def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
     
     means, cov, d = outer_coherent(alphas,betas)
     log_weights = d - 1j*theta*N*(ns-ms)
+    num_k = len(log_weights)
 
     if fast:
         log_weights[N+1:] += np.log(2) #For real parts
+        num_k = N+1
     
     if norm:
         log_norm = logsumexp(log_weights)
         norm = np.exp(log_norm).real #Extract the real part. Should be real anyway if not fast
         log_weights -= np.log(norm)
     
-    return means.T, cov, log_weights, N+1,
+    return means.T, cov, log_weights, num_k
     
 
 def eps_superpos_coherent(N, inf):
@@ -103,7 +105,7 @@ def eps_superpos_coherent(N, inf):
     """
     return (factorial(N+1)*inf)**(1/(2*(N+1)))
 
-def gen_fock_superpos_coherent(coeffs, infid, eps = None):
+def gen_fock_superpos_coherent(coeffs, infid, eps = None, norm = True, fast =True):
     """Returns the weights, means and covariance matrix of the state |psi> = c0 |0> + c1 |1> + c2 |2> + ... + c_max |n_max>
     in the coherent-fock representation.
 
@@ -133,24 +135,35 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None):
     #ckn  = np.sqrt(factorial(ns)) / eps** ns * coeffs[:,np.newaxis] * np.exp(-1j*ks*ns*theta)
     ck = logsumexp(ckn, axis =0)
     #ck = np.sum(ckn, axis = 0)
+
+    if fast:
+        ns, ms = gen_indices(N)
+    else:
+        ns, ms = gen_indices_full(N)
    
-    ns, ms = gen_indices(N)
+    
     alphas = eps * np.exp(1j * theta * ns)
     betas = eps * np.exp(1j * theta * ms)
     
     means, cov, d = outer_coherent(alphas,betas)
 
     log_weights = d
-    log_weights[N+1:] += np.log(2) #For the real parts
-    log_weights[0:N+1] += 2 * ck.real
-    log_weights[N+1:] += ck[ns[N+1:]] + np.conjugate(ck[ms[N+1:]])
-    #log_weights[N+1:] += np.log(ck[ns[N+1:]] * np.conjugate(ck[ms[N+1:]]))
-
-    #Norm = np.sum(np.exp(log_weights).real)
+    num_k = len(log_weights)
     
-    #log_weights -= np.log(Norm)
+    if fast:
+        log_weights[N+1:] += np.log(2) #For the real parts
+        num_k = N+1
         
-    return means.T, cov, log_weights, N+1
+    log_weights += ck[ns] + np.conjugate(ck[ms])
+    #log_weights[0:N+1] += 2*ck
+    #log_weights[N+1:] += ck[ns[N+1:]] + np.conjugate(ck[ms[N+1:]])
+    
+    if norm:
+        log_norm = logsumexp(log_weights)
+        norm = np.exp(log_norm).real #Extract the real part. Should be real anyway if not fast
+        log_weights -= np.log(norm)
+        
+    return means.T, cov, log_weights, num_k
 
 def norm_coherent(N, eps):
     """REVISE

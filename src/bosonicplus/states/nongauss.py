@@ -2,14 +2,14 @@ import numpy as np
 from math import factorial
 from bosonicplus.base import State
 from .coherent import gen_fock_coherent, gen_sqz_cat_coherent, gen_fock_coherent_old
-from .gkp_squeezing import gen_gkp_coherent
+from bosonicplus.gkp_squeezing import gen_gkp_coherent
 from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 
 
-def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = False):
+def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = True):
     """Prepare Fock state in coherent state approx"""
     if fast: 
-        data = gen_fock_coherent(n, inf, epsilon)
+        data = gen_fock_coherent(n, inf, epsilon, norm =True)
     else:
         data = gen_fock_coherent_old(n, inf, epsilon)
         
@@ -17,7 +17,7 @@ def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = False):
     fock.update_data(data)
     return fock
 
-def prepare_sqz_cat_coherent(r, alpha, k, MP =False, fast = False):
+def prepare_sqz_cat_coherent(r, alpha, k, fast = False):
     """Prepare a squeezed cat, requires a higher precision with mp.math
     Args: 
         r : squeezing of the cat
@@ -27,25 +27,25 @@ def prepare_sqz_cat_coherent(r, alpha, k, MP =False, fast = False):
         State
     
     """
-    data = gen_sqz_cat_coherent(r, alpha, k, MP, fast)
+    data = gen_sqz_cat_coherent(r, alpha, k, fast)
     
     sq_cat = State(1)
     sq_cat.update_data(data)
     return sq_cat
 
-def prepare_gkp_coherent(n, lattice, N = 1, inf = 1e-4, fast=False):
+def prepare_gkp_nonlinear_sqz(n, lattice, N = 1, inf = 1e-4, fast=True):
     """
     Obtain best GKP state in coherent state decomp from the ground state of the GKP nonlinear squeezing operator
     Args: 
         n: Fock cutoff
-        type: '0', '1', 's0', 's1', 'h'
+        lattice: '0', '1', 's0', 's1', 'h0', 'h1', 'hs0', 'hs1'
         N: scaling of the grid
-        inf: (in)fidelity of the coherent state approximation
+        inf: infidelity of the coherent state approximation
     Returns:
         bosonicplus.base.State
     """
     
-    data_gkp = gen_gkp_coherent(n,lattice,N,inf,fast)
+    data_gkp = gen_gkp_coherent(n, lattice, N, inf, fast)
 
         
     state = State(1)

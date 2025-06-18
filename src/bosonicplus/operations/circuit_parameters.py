@@ -46,46 +46,48 @@ def gen_interferometer_params(nmodes, r_max_dB, bs_arrange = 'Clements', setting
         nmodes (int): number of modes
         r_max_dB (float): max squeezing in dB
         bs_arrange (str): beamsplitter arrangement, Clements, cascade, inv_cascade
-        phases (bool): to add extra phases at the end of the circuit
-        disp (None or float): max magnitude of random displacement in each mode
+        setting (str): circuit setting, either no_phase or two_mode_squeezing
     Returns:
         params (dict): dictionary
     """
-    
-    
+  
 
-    # Beamsplitters
+    # Beamsplitters/two-mode squeezers
     if bs_arrange == 'Clements':
         inds = gen_Clements_indices(nmodes)
     elif bs_arrange == 'cascade':
         inds = gen_cascade_indices(nmodes)
     elif bs_arrange == 'inv_cascade':
         inds = gen_inv_cascade_indices(nmodes)
+
     else:
-        raise ValueError('bs_arrange must be either str(Clements), str(cascade) or str(inv_cascade).')
+        raise ValueError('bs_arrange must be either str(Clements), str(cascade), str(inv_cascade)')
         
     nbs = len(inds)
 
     if setting == 'no_phase':
-        
-        #rs_angle = np.random.uniform(-np.pi,np.pi, nmodes) 
+        r = dB_to_r(r_max_dB)
+        rs = np.random.uniform(-r,r,nmodes)
         rs_angle = np.zeros(nmodes) #Ignore the squeezing angle.
-        #phis = np.random.uniform(-np.pi,np.pi,nbs) 
+        sqz = list(zip(rs, rs_angle))
+        
+        thetas = np.random.uniform(0.1,np.pi/2-0.1,nbs)
         phis = np.zeros(nbs) #Ignore the beam splitter phases
-        phis_extra = []
-        alpha = []
-        
-        
-    # Squeezers
-    r = dB_to_r(r_max_dB)
-    rs = np.random.uniform(-r,r,nmodes)
-    sqz = list(zip(rs, rs_angle))
-    
-    thetas = np.random.uniform(0.1,np.pi/2-0.1,nbs)
-    #phis = np.random.uniform(-np.pi,np.pi,nbs) 
-    #phis = np.zeros(nbs) #Ignore the beam splitter phases
-    bs = list(zip(thetas, phis, inds))
+ 
+        bs = list(zip(thetas, phis, inds))
 
+        phis_extra = [] #No extra rotation
+        alpha = [] #No displacement
+        
+    elif setting == 'two_mode_squeezing':
+        sqz = []
+        r = dB_to_r(r_max_dB)
+        rs = np.random.uniform(0,r,nmodes)
+        phis = np.random.uniform(-np.pi,np.pi, nmodes)
+        bs = list(zip(rs, phis, inds))
+        phis_extra = [] #No extra rotation
+        alpha = [] #No displacement
+        
     # Extra phases
     #if phases:
      #   phis = np.random.uniform(-np.pi,np.pi,nmodes)
@@ -108,29 +110,35 @@ def gen_interferometer_params(nmodes, r_max_dB, bs_arrange = 'Clements', setting
     return params
 
 def params_to_1D_array(params_dict, setting = 'no_phase'):
-    """Unpack dict into 1D array of params in a specific order to use as arg in basinhopping
+    """Unpack dict into 1D array of params in a specific order to use as arg in scipy.optimize.minimize/basinhopping
 
     Returns: 
         
     """
-    rs, rs_phi = zip(*params_dict['sqz'])
+    sqz = params_dict['sqz']
+    bs = params_dict['bs']
     phis_extra = params_dict['phis']
-    
     disp = params_dict['alphas']
+    
+    if sqz:
+        rs, rs_phi = zip(*params_dict['sqz'])
+        
     if disp:
         alpha, alpha_phi = zip(*params_dict['alphas'])
-    else: 
-        alpha = []
-        alpha_phi = []
+        
 
     bs_thetas, bs_phis, inds = zip(*params_dict['bs']) #BS indices are inferred in circuit building function
 
     
     if setting == 'no_phase':
         #Ignore ALL phases
+        alpha = [] #No displacement
         params = [rs, bs_thetas, alpha]
+    if setting == 'two_mode_squeezing':
+        params = zip(bs_thetas, bs_phis) #Concantenate pairwise
         
     return [i for row in params for i in row] #Flatten manually
+    
 
 def unpack_params(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase'):
     
@@ -163,6 +171,12 @@ def unpack_params(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase')
         alphas = params[nmodes+nbs:]
         return rs, thetas, alphas
         
+    elif setting == 'two_mode_squeezing':
+        rs = params[0 : nbs]
+        phis = params[nbs:]
+        alphas = []
+        return rs, phis, alphas
+        
     else:
         raise ValueError('This setting is not implemented')
         
@@ -188,23 +202,32 @@ def params_to_dict(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase'
 
     if setting == 'no_phase':
         
-        phis = np.zeros(nmodes)
+        phis_sq = np.zeros(nmodes)
+        
         phis_extra = []
         rs, thetas, alpha = unpack_params(params, nmodes, bs_arrange, setting)
+        sqz = list(zip(rs, phis_sq)) #Add zero angle to squeezing
+        phis_bs = np.zeros(len(thetas))
         
-    sqz = list(zip(rs, phis)) #Add zero angle to squeezing
         
-    # Beamsplitters
-
-    if bs_arrange == 'Clements':
-        bs = list(zip(thetas, phis, gen_Clements_indices(nmodes)))
-    elif bs_arrange =='cascade':
-        bs = list(zip(thetas, phis, gen_cascade_indices(nmodes)))
-    elif bs_arrange =='inv_cascade':
-        bs = list(zip(thetas, phis, gen_inv_cascade_indices(nmodes)))
-    
+    elif setting == 'two_mode_squeezing':
+        thetas, phis_bs, alpha = unpack_params(params, nmodes, bs_arrange, setting)
+        sqz = []
+        phis_extra = []
+    else:
+        raise ValueError('setting isnt implemented.')
+        
     if alpha: 
         alpha = list(zip(alpha, phis))
+     
+    # Beamsplitters
+    if bs_arrange == 'Clements':
+        bs = list(zip(thetas, phis_bs, gen_Clements_indices(nmodes)))
+    elif bs_arrange =='cascade':
+        bs = list(zip(thetas, phis_bs, gen_cascade_indices(nmodes)))
+    elif bs_arrange =='inv_cascade':
+        bs = list(zip(thetas, phis_bs, gen_inv_cascade_indices(nmodes)))
+        
    
     return {'sqz': sqz, 'bs': bs, 'phis': phis_extra, 'alphas': alpha}
 

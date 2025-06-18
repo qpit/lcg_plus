@@ -74,7 +74,7 @@ def Gauss(sigma, mu, xvec, pvec, MP = False):
         G_mp = np.zeros(exparg.shape, dtype='complex')
         for i in range(exparg.shape[0]):
             for j in range(exparg.shape[1]):
-                G_mp[i,j] = mp.fprod([Norm, mp.exp(exparg[i,j])])[0]
+                G_mp[i,j] = mp.fprod([Norm, mp.exp(exparg[i,j])])
         return G_mp
     else: 
         return Norm * np.exp(exparg)  

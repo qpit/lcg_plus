@@ -128,7 +128,7 @@ def gkp_operator_coherent(cutoff, which, eps):
     """Get GKP non-linear squeezing operator up to a cutoff in the Fock space in the coherent state decomp
     """
     means = []
-    weights = []
+    log_weights = []
     rho = GKP_nonlinear_squeezing_operator(cutoff, which=which)
     N = cutoff
     coeffs = np.zeros((cutoff+1, cutoff +1), dtype = 'complex')
@@ -150,11 +150,11 @@ def gkp_operator_coherent(cutoff, which, eps):
 
             mu, cov, factor = outer_coherent(alpha_k, alpha_l)
             means.append(mu)
-            weights.append(ckl * factor)
+            log_weights.append(factor+np.log(ckl))
     
     
             
-    return np.array(means), np.array(cov), np.array(weights) #Don't normalise! Operator Q is not supposed to be normalised
+    return np.array(means), np.array(cov), np.array(log_weights) #Don't normalise! Operator Q is not supposed to be normalised
 
 def gen_gkp_coherent(n, lattice, N = 1,inf = 1e-4, fast = False):
     """

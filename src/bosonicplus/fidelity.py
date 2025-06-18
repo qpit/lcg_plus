@@ -1,12 +1,13 @@
 import numpy as np
 from mpmath import mp
 from scipy.special import logsumexp
-hbar = 2
 
 def overlap_bosonic(state1, state2):
     #Equal number of modes check
     if state1.num_modes != state2.num_modes:
         raise ValueError('Number of modes is not the same in both states.')
+    if state1.hbar != state2.hbar:
+        raise ValueError("hbar is not the same in both states.")
 
     if state1.num_k != state1.num_weights or state2.num_k != state2.num_weights:
         return overlap_reduced(state1, state2)
@@ -17,6 +18,9 @@ def overlap_log(state1, state2):
     #Equal number of modes check
     if state1.num_modes != state2.num_modes:
         raise ValueError('Number of modes is not the same in both states.')
+
+    if state1.hbar != state2.hbar:
+        raise ValueError("hbar is not the same in both states.")
 
     if state1.num_k != state1.num_weights or state2.num_k != state2.num_weights:
         return overlap_reduced_log(state1, state2)
@@ -39,6 +43,7 @@ def overlap_full(state1, state2, MP = False):
     if state1.num_modes != state2.num_modes:
         raise ValueError('Number of modes is not the same in both states.')
 
+
     N = state1.num_modes
 
     weights1 = state1.weights
@@ -58,7 +63,7 @@ def overlap_full(state1, state2, MP = False):
     covsum_inv = np.linalg.inv(covsum)
     exp_arg = np.einsum('...j,...jk,...k', deltas, covsum_inv, deltas)
   
-    weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
+    weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * state1.hbar ** N
                * np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
                
     overlap = np.sum(weighted_exp)/(state1.norm*state2.norm)
@@ -105,7 +110,7 @@ def overlap_full_log(state1, state2):
   
     #weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                #* np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
-    overlap = logsumexp(weighted_exp)/(n1*n2) * hbar ** N
+    overlap = logsumexp(weighted_exp)/(n1*n2) * state1.hbar ** N
                
     #overlap = np.sum(weighted_exp)/(state1.norm*state2.norm)
     
@@ -151,10 +156,10 @@ def overlap_reduced(state1, state2):
     exp_arg = np.einsum('...j,...jk,...k', deltas, covsum_inv, deltas)
     exp_arg_special = np.einsum('...j,...jk,...k', deltas_special, covsum_inv, deltas_special)
 
-    weighted_exp = weights1[:,np.newaxis] * weights2[np.newaxis,:]*hbar ** N* np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) 
+    weighted_exp = weights1[:,np.newaxis] * weights2[np.newaxis,:]*state1.hbar ** N* np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) 
 
     weighted_exp_special = weights1[k1:,np.newaxis] * np.conjugate(
-        weights2[np.newaxis,k2:]) *hbar**N *np.exp(-0.5*exp_arg_special)/np.sqrt( np.linalg.det(covsum))  
+        weights2[np.newaxis,k2:]) *state1.hbar**N *np.exp(-0.5*exp_arg_special)/np.sqrt( np.linalg.det(covsum))  
                 
     
     overlap = 0    
@@ -234,11 +239,11 @@ def overlap_reduced_log(state1, state2):
     #overlap += 0.5*np.sum(weighted_exp[k1:,k2:]).real
     #overlap += 0.5*np.sum(weighted_exp_special).real
     
-    return hbar**N*overlap/(state1.norm*state2.norm)
+    return state1.hbar**N*overlap/(state1.norm*state2.norm)
 
 
 
-def overlap_with_wigner(W1, W2, xvec, pvec):
+def overlap_with_wigner(W1, W2, xvec, pvec, hbar = 2):
     """
     Calculate overlap by numerically integrating over the explicit single-mode Wigner functions.
     

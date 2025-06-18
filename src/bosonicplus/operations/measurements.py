@@ -4,12 +4,12 @@ from bosonicplus.states.coherent import gen_fock_coherent, gen_fock_bosonic, gen
 from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi, chop_in_blocks_multi_v2, chop_in_blocks_vector_multi_v2
 from mpmath import mp
 from scipy.special import logsumexp
-hbar = 2
+
 
 
 # PNRD MEASUREMENT
 # ------------------------------------
-def project_fock_coherent(n, data, mode, inf=1e-4, k2=None):  
+def project_fock_coherent(n, data, mode, inf=1e-4, k2=None, hbar =2 ):  
     """Returns data tuple after projecting mode on fock state n (in coherent approx)
     
     Args:
@@ -126,7 +126,7 @@ def pkn(k,n, N):
     return pkn
 
 
-def ppnrd_povm_thermal(k, N):
+def ppnrd_povm_thermal(k, N, hbar =2):
     """Pseudo pnrd povm as weighted sum of thermal states. 
     
     Args: 
@@ -166,7 +166,7 @@ def ppnrd_povm_thermal(k, N):
     
     return data
 
-def project_ppnrd_thermal(data, mode, n, M):
+def project_ppnrd_thermal(data, mode, n, M, hbar = 2):
     
     means, covs, log_weights = data
     
@@ -216,7 +216,7 @@ def project_ppnrd_thermal(data, mode, n, M):
     
     return data_A 
 
-def project_fock_thermal(data, mode, n ,r = 0.05):
+def project_fock_thermal(data, mode, n ,r = 0.05, hbar = 2):
     means, covs, log_weights = data
     
     modes = [mode]
@@ -327,7 +327,7 @@ def project_homodyne(data, mode, result, k, MP = False):
 #Gradients
 #-------------------------------------
 
-def project_fock_coherent_gradients(n, data, data_partial, mode, inf=1e-4):  
+def project_fock_coherent_gradients(n, data, data_partial, mode, inf=1e-4, hbar = 2):  
     """Returns data tuple after projecting mode on fock state n (in coherent approx)
     
     Args:

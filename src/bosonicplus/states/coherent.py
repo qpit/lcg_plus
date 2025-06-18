@@ -6,11 +6,7 @@
 # The Wigner function of the superposition of coherent states is a weighted sum of Gaussians.
 
 import numpy as np
-#from math import factorial
-from mpmath import mp, fp 
 from scipy.special import  factorial, comb, logsumexp
-#from bosonicplus.base import State
-hbar = 2
 
 def gen_indices(nmax:int):
     """Generate the upper triangular n,m index list, with diagonal indices in front
@@ -30,7 +26,7 @@ def gen_indices_full(nmax:int):
     ms = np.concatenate([range(k1),ms, ls])
     return ns, ms
 
-def outer_coherent(alpha, beta):
+def outer_coherent(alpha, beta, hbar =2):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
     describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
     in Appendix A of https://arxiv.org/abs/2103.05530.
@@ -56,7 +52,7 @@ def eps_fock_coherent(N, inf):
     return (factorial(2*N+1)/(factorial(N)) * inf)**(1/(2*(N+1)))
 
 
-def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True):
+def gen_fock_coherent(N, infid, eps = None, norm = True, fast = True, hbar =2):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
@@ -177,7 +173,7 @@ def order_infidelity_fock_coherent(N, alpha):
     return factorial(N)/factorial(2*N+1)*alpha**(2*(N+1))
 
 #Old generating functions
-def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True):
+def gen_fock_coherent_old(N, infid, eps = None, fast = False, norm = True, hbar =2):
     """Generate the Bosonic state data for a Fock state N in the coherent state representation.
     
     Args:
@@ -343,7 +339,7 @@ def gen_fock_superpos_coherent_old(coeffs, infid, eps = None, fast = False):
 # |N><M| operator
 # ---------------------------------------
 
-def fock_outer_coherent(N, M, eps1, eps2):
+def fock_outer_coherent(N, M, eps1, eps2, hbar =2):
     """Return |N><M| operator in bosonic representation
     WORK IN PROGRESS
     OBS: Purity error
@@ -428,7 +424,7 @@ def fock_outer_coherent(N, M, eps1, eps2):
     
     return means, cov, log_weights
 
-def outer_sqz_coherent(r, alpha, beta):
+def outer_sqz_coherent(r, alpha, beta, hbar =2):
     """ Returns the coefficient, displacement vector and covariance matrix (vacuum) of the Gaussian that
     describes the Wigner function of the outer product of two coherent states |alpha><beta| derived 
     in Appendix A of https://arxiv.org/abs/2103.05530.
@@ -493,7 +489,7 @@ def gen_sqz_cat_coherent(r, alpha, k, fast = False):
         return means, cov, log_weights, len(log_weights)
 
 
-def gen_fock_bosonic(n, r=0.05):
+def gen_fock_bosonic(n, r=0.05, hbar = 2):
     """
     Prepares the arrays of weights, means and covs of a Fock state.
     Normalisation becomes zero for n > 6 giving nan in the weights
@@ -518,9 +514,7 @@ def gen_fock_bosonic(n, r=0.05):
     means = np.zeros([n + 1, 2])
     covs = np.array(
         [
-            #0.5
-            1
-            #* sf.hbar
+            0.5 * hbar
             * np.identity(2)
             * (1 + (n - j) * r**2)
             / (1 - (n - j) * r**2)
@@ -538,7 +532,7 @@ def gen_fock_bosonic(n, r=0.05):
 
     return means, covs, weights, len(weights), np.sum(weights)
     
-def gen_fock_log(n, r = 0.05):
+def gen_fock_log(n, r = 0.05, hbar = 2):
 
     if 1 / r**2 < n:
             raise ValueError(f"The parameter 1 / r ** 2={1 / r ** 2} is smaller than n={n}")
@@ -548,9 +542,7 @@ def gen_fock_log(n, r = 0.05):
     means = np.zeros([n + 1, 2])
     covs = np.array(
         [
-            #0.5
-            1
-            #* sf.hbar
+            0.5 * hbar
             * np.identity(2)
             * (1 + (n - j) * r**2)
             / (1 - (n - j) * r**2)

@@ -104,8 +104,8 @@ class State:
         
         num = self.num_modes
             
-        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*hbar)-1/2*num))/self.norm
-        var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * hbar**2) - 1 / 4*num)/self.norm)
+        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*self.hbar)-1/2*num))/self.norm
+        var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * self.hbar**2) - 1 / 4*num)/self.norm)
        
         
         return ex, var
@@ -280,10 +280,10 @@ class State:
 
         if self.ordering == 'xpxp':
             X = np.diag(np.repeat(np.sqrt(etas),2))
-            Y = np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 ))
+            Y = np.diag(np.repeat( (1-etas) * self.hbar / 2 * (2*nbars + 1) ,2 ))
         elif self.ordering == 'xxpp':
             X = xpxp_to_xxpp(np.diag(np.repeat(np.sqrt(etas),2)))
-            Y = xpxp_to_xxpp(np.diag(np.repeat( (1-etas) * hbar / 2 * (2*nbars + 1) ,2 )))
+            Y = xpxp_to_xxpp(np.diag(np.repeat( (1-etas) * self.hbar / 2 * (2*nbars + 1) ,2 )))
 
         means = np.einsum("...jk,...k", X, means)
         cov = X @ cov @ X.T
@@ -317,10 +317,10 @@ class State:
 
         if self.ordering == 'xpxp':
             X = np.diag(np.repeat(np.sqrt(Gs),2))
-            Y = np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 ))
+            Y = np.diag(np.repeat( (Gs-1) * self.hbar / 2 ,2 ))
         elif self.ordering == 'xxpp':
             X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(Gs),2)))
-            Y = xxpp_to_xpxp(np.diag(np.repeat( (Gs-1) * hbar / 2 ,2 )))
+            Y = xxpp_to_xpxp(np.diag(np.repeat( (Gs-1) * self.hbar / 2 ,2 )))
         
         means = np.einsum("...jk,...k", X, means)
         cov = X @ cov @ X.T

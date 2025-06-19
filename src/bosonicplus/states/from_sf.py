@@ -205,7 +205,8 @@ def prepare_fock_log(n, r=0.05):
     Raises:
         ValueError: if :math:`1/r^2` is less than :math:`n`
     """
-    means, covs, log_weights, num_k = get_fock_log(n,r)
+    state = State(1)
+    means, covs, log_weights, num_k = gen_fock_log(n,r)
     
     state.update_data([means, covs, log_weights, len(log_weights)])
     state.normalise()

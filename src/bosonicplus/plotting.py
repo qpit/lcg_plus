@@ -9,40 +9,52 @@ hbar = 2
 from bosonicplus.sampling import *
 
 
-def plot_wig(W, q1, q2, colorbar = True, xlabel = None, ylabel = None, GKP = False, ax = None):
+def plot_wig(W, x, p, colorbar = True, xlabel = None, ylabel = None, gridx = None, gridp=None, ax = None, hbar = 2, contourf = False):
     if not ax:
-        ax_ = plt.gca()
+        ax = plt.gca()
         
     #W = np.round(W.real, 4)
     scale = np.max(W.real)
     nrm = mpl.colors.Normalize(-scale, scale)
-    if GKP:
-        im = plt.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
-        plt.xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-        plt.ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
-        plt.grid('on')
+    #if GKP:
+        #im = plt.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
+        #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+        #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
+        #ax.grid('on')
+    if not gridx:
+        gridx = 1
+    if not gridp:
+        gridp =1
+        
+    #Make grid for Wigner function and plot it 
+    #make_grid(ax, x/gridx, p/gridp)
+    extent = np.array([np.min(x), np.max(x), np.min(p), np.max(p)])
+    extent[0:2]/=gridx
+    extent[2:]/=gridp
+    if contourf:
+        im = ax.contourf(x, p, W, 300, cmap=cm.RdBu, norm = nrm)
     else:
         
-        im = plt.contourf(q1, q2, W, 100, cmap=cm.RdBu, norm = nrm)
+        im = ax.imshow(W, cmap='RdBu', norm = nrm, extent = extent, interpolation = 'bilinear')
         
         #im = plt.imshow(q1, q2, W, 100, cmap='RdBu', norm = nrm)
         
-        if xlabel is not None:
-            plt.xlabel(xlabel, fontsize=12)
-            plt.ylabel(ylabel, fontsize=12)
-        else:
-            plt.xlabel(r'$x$', fontsize=12)
-            plt.ylabel(r'$p$', fontsize=12)
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+    else:
+        ax.set_xlabel(r'$x$')
+        ax.set_ylabel(r'$p$')
     
     #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
     #ax.set_ylabel(r"$p(\sqrt{\hbar\pi})^{-1}$", fontsize=12)
     
     if colorbar:
-        plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax=ax_, shrink = 0.82)
+        plt.colorbar(cm.ScalarMappable(norm = nrm, cmap = cm.RdBu), ax=ax, shrink = 0.82)
     
     #ax_.set_rasterized(True)
     #ax_.set_rasterization_zorder(0)
-    #ax_.set_aspect("equal")
+    ax.set_aspect("equal")
     
     return im
 
@@ -169,7 +181,6 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     extent[0:2]/=gridx
     extent[2:]/=gridp
     im = ax.imshow(W, cmap='RdBu', norm = nrm, extent = extent, interpolation = 'bilinear')
-    #ax_p.xaxis.set_inverted(True) 
     ax.set_aspect("equal")
     
 
@@ -183,19 +194,12 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     ax_p.plot(marginal_p, p/gridp, linewidth = lw)
     
     ax_x.tick_params(axis = 'x',labelbottom = False)
-    #ax_p.set_xticks([0, np.round(np.max(marginal_p),2)])
-    #ax_x.set_yticks([0, np.round(np.max(marginal_x),2)])
 
     ax.set_xlim([-xlim,xlim])
     ax.set_ylim([-plim,plim])
     ax_x.set_ylim([0, np.max(marginal_x)])
     ax_p.set_xlim([0, np.max(marginal_p)])
     ax_p.set_ylim([-xlim,xlim])
-    #ax_x.set_
-    #ax_x.set_yticks([np.min(marginal_x), np.max(marginal_x)])
-    #ax_x.set_yticks([])
-    #ax_p.set_xticks([])
-    #ax_p.xaxis.set_major_locator(plt.MaxNLocator(0))
     
     ax.tick_params(axis = 'y', labelleft=False)
 
@@ -206,9 +210,6 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     ax_p.invert_yaxis()
 
     plt.colorbar(im, cax = cax )
-    #if title:
-        #fig.suptitle(title, horizontalalignment = kwargs['title_loc'], bbox=(-1))
-    #fig.tight_layout()
     
     return fig, ax, ax_x, ax_p, cax
 

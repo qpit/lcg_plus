@@ -1,5 +1,5 @@
 import numpy as np
-from bosonicplus.charfun import char_fun
+from bosonicplus.charfun import char_fun, char_fun_gradients
 from bosonicplus.conversions import dB_to_r, Delta_to_dB
 
 
@@ -47,7 +47,7 @@ def effective_sqz(state, lattice : str):
 
     Args:
         state : base.State object
-        lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp
+        lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
     """
 
     alpha = get_gkp_stabilizer(lattice)
@@ -64,6 +64,32 @@ def effective_sqz(state, lattice : str):
     Delta = 0.5 * (D1+D2)
     
     return float(Delta)
+
+
+def effective_sqz_gradients(state, lattice : str):
+    """
+    Args:
+        state : State
+        lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
+    """
+
+    alpha = get_gkp_stabilier(lattice)
+
+    f1, df1 = char_fun_gradients(state, alpha)
+    f2, df2 = char_fun_gradients(state, -alpha)
+
+    D1 = -2/np.abs(alpha)**2*np.log(np.abs(f1)) #Square of Delta(+alpha)
+    D2 = -2/np.abs(alpha)**2*np.log(np.abs(f2)) #Square of Delta(-alpha)
+
+
+    dD1 =  - 2/np.abs(alpha)**2 * f1 / np.abs(f1)**2 * df1
+    dD2 = - 2/np.abs(alpha)**2 * f2 / np.abs(f2)**2 * df2
+    
+    
+    Delta =  0.5 * (np.sqrt(D1)+np.sqrt(D2))
+    dDelta =  0.25/np.sqrt(D1)*dD1+0.25/np.sqrt(D2)*dD2
+    
+    return float(Delta), dDelta
 
 
 

@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import factorial
 from bosonicplus.states.fockbasis import density_mn
 from bosonicplus.states.coherent import outer_coherent, gen_fock_superpos_coherent
-from bosonicplus.charfun import char_fun
+from bosonicplus.charfun import char_fun, char_fun_gradients
 
 
 def get_gkp_squeezing_stabilizers(lattice, N=1):
@@ -68,6 +68,33 @@ def Q_expval(state, lattice, N=1):
         expval += c * char_fun(state, alphas[i])
     
     return expval/2 #Norm wrt Gaussian limit
+
+
+def Q_expval_gradients(state, lattice, N=1):
+    """Calculate the expectation value of the Q operator defined according to a GKP lattice specified by which
+    and according to the grid scaling N
+    To do: review against the definitions in states.gkp_squeezing
+    
+    Args: 
+        state : State
+        lattice : 0, 1, s0, s1 or h
+        N : grid scaling
+    Returns:
+        expval : float, expectation value of Q operator
+    """
+
+    a1, a2, coeffs = get_gkp_squeezing_stabilizers(lattice, N)
+    
+    alphas = [0, a1, -a1, a2, -a2]
+    expval = 0
+    numG = state.covs_partial.shape[0] #number of gradients
+    dQ = np.zeros(numG,dtype='complex')
+    for i, c in enumerate(coeffs):
+        charf, dcharf = char_fun_gradients(state, alphas[i])
+        expval += c * charf
+        dQ += c * dcharf
+    
+    return expval/2, dQ/2 #Norm wrt Gaussian limit
     
 
 def gkp_nonlinear_squeezing_operator(cutoff, N=1, lattice = '0'):
@@ -82,8 +109,6 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, lattice = '0'):
             rho += c * density_mn(alphas[i], cutoff)
 
     return rho /2 #Norm wrt Gaussian limit
-
-
 
 def gen_gkp_coherent(n, lattice, N = 1,inf = 1e-4, fast = False):
     """

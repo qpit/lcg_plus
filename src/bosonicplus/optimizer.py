@@ -3,12 +3,14 @@ from bosonicplus.operations.circuit_parameters import gen_interferometer_params,
 import numpy as np
 from bosonicplus.conversions import dB_to_r, r_to_dB
 from bosonicplus.cost_functions import symm_effective_squeezing
+import pickle
+
 class GBS_optimizer:
 
-    def __init__(self, num_modes, 
+    def __init__(self, num_modes = 2, 
+                 pattern = [1],
                  bs_arrange = 'inv_cascade', 
                  setting = 'no_phase',
-                 pattern = [1],
                  costf = symm_effective_squeezing,
                  costf_lattice = 's',
                  pPNR = False,
@@ -101,10 +103,9 @@ class GBS_optimizer:
                              self.pPNR, 
                              self.gradients, 
                              self.inf, self.fast, costf_lattice)
-        
-                
-        #self.costf_kwargs = {'lattice': costf_lattice}
 
+
+           
 
     def set_initial_guess(self, r_max_dB = -15, phases = False, disp = False, params = None):
         """Set the initial guess for the optimisation.
@@ -129,6 +130,12 @@ class GBS_optimizer:
         self.r_max = np.abs(dB_to_r(r_max_dB))
         self.num_bs = len(self.guess_dict['bs'])
 
+        #set the optimizer bounds
+        if self.setting == 'no_phase':
+            self.bounds = [(-self.r_max,self.r_max)]*self.num_modes + [(0.1, np.pi/2-0.1)] * self.num_bs
+        elif self.setting == 'two_mode_squeezing':
+            self.bounds = list(chain.from_iterable(zip([(0,self.r_max)]*self.num_bs, [(-np.pi, np.pi)] * self.num_bs)))
+
         #Calculate the initial cost function value
         self.init_costf = self.costf(self.guess,*self.costf_args)
 
@@ -137,8 +144,9 @@ class GBS_optimizer:
                          method = 'L-BFGS-B', 
                          maxiter = 500, 
                          niter = 50, 
-                         bounds = None,
-                         out = True):
+                         stepsize = 2,
+                         tol = 1e-4,
+                         disp = True):
         """
         method : from basinhopping, SLSQP or L-BFGS-B works best 
         niter : see basinhopping
@@ -148,19 +156,13 @@ class GBS_optimizer:
 
         """
 
-        if isinstance(bounds, type(None)):
-            if self.setting == 'no_phase':
-                #bounds = [(-self.r_max,self.r_max)]*self.num_modes + [(0, np.pi/2)] * self.num_bs + [(-np.pi, np.pi)]*self.num_bs
-                bounds = [(-self.r_max,self.r_max)]*self.num_modes + [(0.1, np.pi/2-0.1)] * self.num_bs
-            elif self.setting == 'two_mode_squeezing':
-                bounds = list(chain.from_iterable(zip([(0,self.r_max)]*self.num_bs, [(-np.pi, np.pi)] * self.num_bs)))
-                #bounds = [(0,self.r_max)]*self.num_bs + [(-np.pi, np.pi)] * self.num_bs
+        
         
         minimizer_kwargs = {'args': self.costf_args, 
                             'method': method,
                             'jac' : self.gradients,
-                            'tol': 1e-4,
-                            'bounds': bounds,
+                            'tol': tol,
+                            'bounds': self.bounds,
                              'options': {'maxiter': maxiter}
                            }
                 
@@ -171,7 +173,7 @@ class GBS_optimizer:
         
         
         res = basinhopping(self.costf, x0 = params_init, niter = niter,
-        minimizer_kwargs = minimizer_kwargs, disp =True, stepsize=2) 
+        minimizer_kwargs = minimizer_kwargs, disp = disp, stepsize=stepsize) 
 
         
             
@@ -183,30 +185,81 @@ class GBS_optimizer:
     def run_local_optimisation(self,  
                          method = 'L-BFGS-B',  
                          maxiter = 500,
-                         bounds = None):
+                         disp = True):
         """
         method : , SLSQP or L-BFGS-B works best 
         bounds : set your own custom bounds. 
 
         """
-
-        if isinstance(bounds, type(None)):
-            if self.setting == 'no_phase':
-            #bounds = [(-self.r_max,self.r_max)]*self.num_modes + [(0, np.pi/2)] * self.num_bs + [(-np.pi, np.pi)]*self.num_bs
-                bounds = [(-self.r_max,self.r_max)]*self.num_modes + [(0.1, np.pi/2-0.1)] * self.num_bs
-            elif self.setting == 'two_mode_squeezing':
-                bounds = list(chain.from_iterable(zip([(0,self.r_max)]*self.num_bs, [(-np.pi, np.pi)] * self.num_bs)))
-                #bounds = [(0,self.r_max)]*self.num_bs + [(-np.pi, np.pi)] * self.num_bs
-
-        
         
         params_init = self.guess
         
         #res = shgo(infidelity_nmode_GBS, bounds = bounds, args = (nmodes, n, target, T))
         
-        res = minimize(self.costf, x0=params_init, args=self.costf_args, method=method, jac=self.gradients, bounds=bounds,options = {'maxiter': maxiter, 'disp':True})
+        res = minimize(self.costf, x0=params_init, args=self.costf_args, method=method, jac=self.gradients, bounds=self.bounds,options = {'maxiter': maxiter, 'disp':disp})
         
         self.result = res
         self.res_dict = params_to_dict(res.x, self.num_modes, self.bs_arrange, self.setting)
+
+
+class GBS_opt_light:
+    def __init__(self, num_modes, bs_arrange, setting, pattern):
+        #Metadata
+        self.bs_arrange = bs_arrange
+        self.nmodes = num_modes
+        self.setting = setting
+        self.pattern = pattern
+        
+        self.params = []
+        self.costfs = []
+        self.num_opts = 0
+    
+    def add_opt(self, opt):
+        self.params.append(opt.result.x)
+        self.costfs.append(opt.result.fun)
+        self.num_opts += 1
+
+def run_opts(nmodes, num_opts, cutoff, niter, bs, costfs, patterns, inf, costf_lattice, setting, pPNR, nbars, etas):
+    
+    for i, bs_arrange in enumerate(bs):
+        for j, costf in enumerate(costfs): 
+            gradients = j == 1
+            fast = j == 0
+            
+            np.random.seed(28) #Each costf uses the same initial guesses
+    
+            for k, pattern in enumerate(patterns): 
+                print(bs_arrange, costf, pattern)
+                opt_light = GBS_opt_light(nmodes, bs_arrange, setting, pattern)
+    
+                if np.sum(pattern) != 0:
+                    num = 0
+                    while num < num_opts: 
+                
+                        opt = GBS_optimizer(nmodes,
+                                            list(pattern),
+                                            bs_arrange,
+                                            setting,
+                                            costf,
+                                            costf_lattice,
+                                            pPNR,
+                                            gradients,
+                                            inf,
+                                            etas,
+                                            nbars,
+                                            fast  
+                                           )
+                        opt.set_initial_guess()
+                       
+                        
+                        opt.run_global_optimisation(disp = False, niter = niter)
+                        print(f'global optimum {num}', opt.result.fun)
+                        opt_light.add_opt(opt)
+
+                        num += 1
+                    with open(f'{bs_arrange}_{gradients}_{pattern}_opt.pickle', 'wb') as handle:
+                        pickle.dump(opt_light, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+        
 
   

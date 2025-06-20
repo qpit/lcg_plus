@@ -5,7 +5,7 @@ from bosonicplus.states.coherent import outer_coherent, gen_fock_superpos_cohere
 from bosonicplus.charfun import char_fun, char_fun_gradients
 
 
-def get_gkp_squeezing_stabilizers(lattice, N=1):
+def get_gkp_squeezing_displacements(lattice, N=1):
     
     lattices = ['0', '1', 's0', 's1', 'h0', 'h1', 'hs0', 'hs1']
         
@@ -20,32 +20,31 @@ def get_gkp_squeezing_stabilizers(lattice, N=1):
         
     if lattice == '0' or lattice =='1': #logical
     
-        a1 = np.sqrt(2 * np.pi) * np.sqrt(N)
-        a2 = 1j * np.sqrt(np.pi/2) * np.sqrt(N)
+        a1 = np.sqrt(2 * np.pi) 
+        a2 = 1j * np.sqrt(np.pi/2)
                                                                                                         
         
     elif lattice == 's0' or lattice == 's1': #qunaught
-        a1 = np.sqrt(np.pi)* np.sqrt(N)
-        a2 = 1j*np.sqrt(np.pi)* np.sqrt(N)
+        a1 = np.sqrt(np.pi)
+        a2 = 1j*np.sqrt(np.pi)
         
 
     elif lattice == 'h0' or lattice == 'h1': #hexagonal logical
         kappa1 = 3**(-1/4) + 3**(1/4)
         kappa2 = 3**(-1/4) - 3**(1/4)
     
-        a1 = np.sqrt(np.pi/2)*(kappa1 +1j*kappa2)* np.sqrt(N)
-        a2 = np.sqrt(np.pi/8)*(kappa2 +1j*kappa1)* np.sqrt(N)
+        a1 = np.sqrt(np.pi/2)*(kappa1 +1j*kappa2)
+        a2 = np.sqrt(np.pi/8)*(kappa2 +1j*kappa1)
 
 
     elif lattice == 'hs0' or lattice == 'hs1': #hexagonal qunaught
         kappa1 = 3**(-1/4) + 3**(1/4)
         kappa2 = 3**(-1/4) - 3**(1/4)
         
-        a1 = np.sqrt(np.pi)/2*(kappa1 + 1j*kappa2)* np.sqrt(N)
-        a2 = np.sqrt(np.pi)/2*(kappa2 + 1j*kappa1)* np.sqrt(N)
-
+        a1 = np.sqrt(np.pi)/2*(kappa1 + 1j*kappa2)
+        a2 = np.sqrt(np.pi)/2*(kappa2 + 1j*kappa1)
         
-    return a1, a2, coeffs
+    return a1*np.sqrt(N), a2*np.sqrt(N), coeffs
     
 
 def Q_expval(state, lattice, N=1):
@@ -60,13 +59,14 @@ def Q_expval(state, lattice, N=1):
     Returns:
         expval : float, expectation value of Q operator
     """
-    a1, a2, coeffs = get_gkp_squeezing_stabilizers(lattice, N)
+    a1, a2, coeffs = get_gkp_squeezing_displacements(lattice, N)
     
     alphas = [0, a1, -a1, a2, -a2]
     expval = 0
+    #print(coeffs, alphas)
     for i, c in enumerate(coeffs):
-        expval += c * char_fun(state, alphas[i])
-    
+        expval += c * char_fun(state, alphas[i]) 
+        #print(i, c, char_fun(state,alphas[i]))
     return expval/2 #Norm wrt Gaussian limit
 
 
@@ -83,7 +83,7 @@ def Q_expval_gradients(state, lattice, N=1):
         expval : float, expectation value of Q operator
     """
 
-    a1, a2, coeffs = get_gkp_squeezing_stabilizers(lattice, N)
+    a1, a2, coeffs = get_gkp_squeezing_displacements(lattice, N)
     
     alphas = [0, a1, -a1, a2, -a2]
     expval = 0
@@ -91,7 +91,7 @@ def Q_expval_gradients(state, lattice, N=1):
     dQ = np.zeros(numG,dtype='complex')
     for i, c in enumerate(coeffs):
         charf, dcharf = char_fun_gradients(state, alphas[i])
-        expval += c * charf
+        expval += c * charf 
         dQ += c * dcharf
     
     return expval/2, dQ/2 #Norm wrt Gaussian limit
@@ -101,7 +101,7 @@ def gkp_nonlinear_squeezing_operator(cutoff, N=1, lattice = '0'):
     """Construct the GKP nonlinear squeezing operator in the Fock basis up to a cutoff for a type of GKP state
     """
     I = np.eye(cutoff+1, dtype='complex')
-    a1, a2, coeffs = get_gkp_squeezing_stabilizers(lattice, N)
+    a1, a2, coeffs = get_gkp_squeezing_displacements(lattice, N)
     alphas = [0, a1, -a1, a2, -a2]
     rho = 4*I
     for i, c in enumerate(coeffs):

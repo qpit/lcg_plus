@@ -73,7 +73,7 @@ def effective_sqz_gradients(state, lattice : str):
         lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
     """
 
-    alpha = get_gkp_stabilier(lattice)
+    alpha = get_gkp_stabilizer(lattice)
 
     f1, df1 = char_fun_gradients(state, alpha)
     f2, df2 = char_fun_gradients(state, -alpha)

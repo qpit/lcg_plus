@@ -293,6 +293,11 @@ class State:
         self.means = means
         self.covs = cov
 
+        #Update the gradients if any
+        if hasattr(self, "means_partial"):
+            self.means_partial =np.einsum("...jk,...k", X, self.means_partial)
+            self.covs_partial =np.einsum("...jk,...kl,...lm", X, self.covs_partial, X.T)
+
     def apply_gain(self, Gs):
         """Apply gain to (multimode) state
 

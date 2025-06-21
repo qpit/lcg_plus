@@ -51,7 +51,6 @@ def gen_interferometer_params(nmodes, r_max_dB, bs_arrange = 'Clements', setting
         params (dict): dictionary
     """
   
-
     # Beamsplitters/two-mode squeezers
     if bs_arrange == 'Clements':
         inds = gen_Clements_indices(nmodes)
@@ -174,27 +173,12 @@ def unpack_params(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase')
     elif setting == 'two_mode_squeezing':
         rs = params[0 : nbs]
         phis = params[nbs:]
-        alphas = []
+        alphas = np.array([])
         return rs, phis, alphas
         
     else:
         raise ValueError('This setting is not implemented')
         
-        
-    #if len(extra) == 3*nmodes:
-     #   phis_extra = extra[0:nmodes]
-      #  alpha = extra[nmodes:]
-    #elif len(extra) == 2*nmodes:
-     #   alpha = extra
-      #  phis_extra = []
-    #elif len(extra) == nmodes:
-      #  phis_extra = extra
-     #   alpha = []
-    #else:
-     #   phis_extra = []
-      #  alpha = []
-   
-    
 def params_to_dict(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase'):
     """
     Get a dictionary over the parameters arranged in a 1D list.
@@ -203,7 +187,6 @@ def params_to_dict(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase'
     if setting == 'no_phase':
         
         phis_sq = np.zeros(nmodes)
-        
         phis_extra = []
         rs, thetas, alpha = unpack_params(params, nmodes, bs_arrange, setting)
         sqz = list(zip(rs, phis_sq)) #Add zero angle to squeezing
@@ -216,8 +199,9 @@ def params_to_dict(params, nmodes, bs_arrange = 'Clements', setting = 'no_phase'
         phis_extra = []
     else:
         raise ValueError('setting isnt implemented.')
+
         
-    if alpha: 
+    if len(alpha) != 0 : 
         alpha = list(zip(alpha, phis))
      
     # Beamsplitters

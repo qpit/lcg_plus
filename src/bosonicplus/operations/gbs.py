@@ -55,7 +55,7 @@ def build_interferometer(params : dict, nmodes : int, out = False, setting = 'no
         
     #Additional rotation symplectics
     phis = params['phis']
-    if phis: 
+    if len(phis) != 0: 
         for i in range(len(phis)):
             #S = xxpp_to_xpxp(expand(rotation(phis[i][0]), phis[i][1], nmodes))
             S = expand_symplectic_matrix(rotation(phis[i][0]), [i], nmodes)
@@ -73,7 +73,7 @@ def build_interferometer(params : dict, nmodes : int, out = False, setting = 'no
     alphas = params['alphas']
     
 
-    if alphas:
+    if len(alphas) != 0:
         disp = np.zeros(2*nmodes)
         for i in range(len(alphas)):
             beta = alphas[i][0]

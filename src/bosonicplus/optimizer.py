@@ -137,7 +137,7 @@ class GBS_optimizer:
             self.bounds = list(chain.from_iterable(zip([(0,self.r_max)]*self.num_bs, [(-np.pi, np.pi)] * self.num_bs)))
 
         #Calculate the initial cost function value
-        self.init_costf = self.costf(self.guess,*self.costf_args)
+        self.init_costf = self.costf(self.guess, *self.costf_args)
 
 
     def run_global_optimisation(self,  
@@ -175,9 +175,6 @@ class GBS_optimizer:
         res = basinhopping(self.costf, x0 = params_init, niter = niter,
         minimizer_kwargs = minimizer_kwargs, disp = disp, stepsize=stepsize) 
 
-        
-            
-        #self.result = res
         self.result = res
         self.res_dict = params_to_dict(res.x, self.num_modes, self.bs_arrange, self.setting)
 
@@ -196,17 +193,25 @@ class GBS_optimizer:
         
         #res = shgo(infidelity_nmode_GBS, bounds = bounds, args = (nmodes, n, target, T))
         
-        res = minimize(self.costf, x0=params_init, args=self.costf_args, method=method, jac=self.gradients, bounds=self.bounds,options = {'maxiter': maxiter, 'disp':disp})
+        res = minimize(self.costf, 
+                       x0=params_init, 
+                       args=self.costf_args, 
+                       method=method, 
+                       jac=self.gradients, 
+                       bounds=self.bounds,
+                       options = {'maxiter': maxiter, 'disp':disp})
         
         self.result = res
         self.res_dict = params_to_dict(res.x, self.num_modes, self.bs_arrange, self.setting)
 
 
 class GBS_opt_light:
-    def __init__(self, num_modes, bs_arrange, setting, pattern):
+    """A lighter version of GBS_optimizer. Intended to store many optimisation results with the same circuit settings.
+    """
+    def __init__(self, nmodes, bs_arrange, setting, pattern):
         #Metadata
         self.bs_arrange = bs_arrange
-        self.nmodes = num_modes
+        self.nmodes = nmodes
         self.setting = setting
         self.pattern = pattern
         
@@ -223,8 +228,8 @@ def run_opts(nmodes, num_opts, cutoff, niter, bs, costfs, patterns, inf, costf_l
     
     for i, bs_arrange in enumerate(bs):
         for j, costf in enumerate(costfs): 
-            gradients = j == 1
-            fast = j == 0
+            gradients = j == 1 #gradients for second costf
+            fast = j == 0 #fast rep for first costf
             
             np.random.seed(28) #Each costf uses the same initial guesses
     

@@ -77,6 +77,7 @@ def symm_effective_squeezing(*args):
     """
     state = state_prep_GBS(*args[0:-2])
     lattice = args[-1]
+    
     eff = effective_sqz(state, lattice+'x') + effective_sqz(state, lattice+'p')
         
     return eff.real/2

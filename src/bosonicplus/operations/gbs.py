@@ -181,7 +181,7 @@ def build_interferometer_gradients(params : dict, nmodes : int, out = False, set
         
     #Additional rotation symplectics if any
     phis = params['phis']
-    if phis: 
+    if len(phis) !=0: 
         for i in range(len(phis)):
             #S = xxpp_to_xpxp(expand(rotation(phis[i][0]), phis[i][1], nmodes))
             S = expand_symplectic_matrix(rotation(phis[i][0]), [i], nmodes)
@@ -202,7 +202,7 @@ def build_interferometer_gradients(params : dict, nmodes : int, out = False, set
     #Apply displacements at the end of the circuit if any
     alphas = params['alphas']
 
-    if alphas:
+    if len(alphas)!=0:
         raise ValueError('Gradients of displacements not implemented.')
         disp = np.zeros(2*nmodes)
         for i in range(len(alphas)):

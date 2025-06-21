@@ -4,6 +4,7 @@ import numpy as np
 from bosonicplus.conversions import dB_to_r, r_to_dB
 from bosonicplus.cost_functions import symm_effective_squeezing
 import pickle
+import os.path
 
 class GBS_optimizer:
 
@@ -235,35 +236,42 @@ def run_opts(nmodes, num_opts, cutoff, niter, bs, costfs, patterns, inf, costf_l
     
             for k, pattern in enumerate(patterns): 
                 print(bs_arrange, costf, pattern)
-                opt_light = GBS_opt_light(nmodes, bs_arrange, setting, pattern)
+                fname = f'{bs_arrange}_{gradients}_{pattern}_opt.pickle'
+                if os.path.isfile(fname):
+                    print('file already exits.')
+                    
+                else:
+                    opt_light = GBS_opt_light(nmodes, bs_arrange, setting, pattern)
+        
+                    if np.sum(pattern) != 0:
+                        num = 0
+                        while num < num_opts: 
+                    
+                            opt = GBS_optimizer(nmodes,
+                                                list(pattern),
+                                                bs_arrange,
+                                                setting,
+                                                costf,
+                                                costf_lattice,
+                                                pPNR,
+                                                gradients,
+                                                inf,
+                                                etas,
+                                                nbars,
+                                                fast  
+                                               )
+                            opt.set_initial_guess()
+                           
+                            
+                            opt.run_global_optimisation(disp = False, niter = niter)
+                            print(f'global optimum {num}', opt.result.fun)
+                            opt_light.add_opt(opt)
     
-                if np.sum(pattern) != 0:
-                    num = 0
-                    while num < num_opts: 
+                            num += 1
+                        with open(f'{bs_arrange}_{gradients}_{pattern}_opt.pickle', 'wb') as handle:
+                            pickle.dump(opt_light, handle, protocol=pickle.HIGHEST_PROTOCOL)
                 
-                        opt = GBS_optimizer(nmodes,
-                                            list(pattern),
-                                            bs_arrange,
-                                            setting,
-                                            costf,
-                                            costf_lattice,
-                                            pPNR,
-                                            gradients,
-                                            inf,
-                                            etas,
-                                            nbars,
-                                            fast  
-                                           )
-                        opt.set_initial_guess()
-                       
-                        
-                        opt.run_global_optimisation(disp = False, niter = niter)
-                        print(f'global optimum {num}', opt.result.fun)
-                        opt_light.add_opt(opt)
-
-                        num += 1
-                    with open(f'{bs_arrange}_{gradients}_{pattern}_opt.pickle', 'wb') as handle:
-                        pickle.dump(opt_light, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                    
     
         
 

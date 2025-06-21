@@ -22,7 +22,7 @@ bs = ['Clements', 'cascade', 'inv_cascade']
 
 costfs = [symm_effective_squeezing, symm_effective_squeezing_gradients]
 
-patterns = [list(repeat(i,nmodes)) for i in range(cutoff)] #Just the diagonals
+patterns = [list(repeat(i,nmodes-1)) for i in range(cutoff)] #Just the diagonals
 #patterns = list(product(range(cutoff+1), repeat=nmodes-1))
 
 run_opts(nmodes, num_opts, cutoff, niter, bs, costfs, patterns, inf, costf_lattice, setting, pPNR, nbars, etas)

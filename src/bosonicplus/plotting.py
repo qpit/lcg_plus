@@ -128,7 +128,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     # Create the Axes.
     ax = fig.add_subplot(gs[1, 1])
     ax_x = fig.add_subplot(gs[0, 1], sharex = ax)
-    ax_p = fig.add_subplot(gs[1, 0])
+    ax_p = fig.add_subplot(gs[1, 0], sharey = ax)
     cax = fig.add_subplot(gs[1,2])
 
 
@@ -191,7 +191,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
 
     #Plot the marginals
     ax_x.plot(x/gridx, marginal_x, linewidth = lw)
-    ax_p.plot(marginal_p, p/gridp, linewidth = lw)
+    ax_p.plot(marginal_p[::-1], p/gridp, linewidth = lw) #reverse marginal in p, otherwise p values increase top to bottom
     
     ax_x.tick_params(axis = 'x',labelbottom = False)
 
@@ -199,15 +199,17 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     ax.set_ylim([-plim,plim])
     ax_x.set_ylim([0, np.max(marginal_x)])
     ax_p.set_xlim([0, np.max(marginal_p)])
-    ax_p.set_ylim([-xlim,xlim])
+    #ax_p.set_ylim([-xlim,xlim])
     
     ax.tick_params(axis = 'y', labelleft=False)
-
+    
+    
     
     ax_x.set_ylabel(r'$P(x)$')
     ax_p.set_xlabel(r'$P(p)$')
     ax_p.invert_xaxis()
-    ax_p.invert_yaxis()
+    #ax_p.invert_yaxis()
+    
 
     plt.colorbar(im, cax = cax )
     

@@ -1,5 +1,5 @@
 import numpy as np
-from bosonicplus.states.coherent import outer_coherent, gen_indices
+from bosonicplus.states.coherent import outer_coherent, gen_indices, gen_indices_full
 from scipy.special import logsumexp
 
 def mu_to_alphas(mu):
@@ -15,7 +15,7 @@ def mu_to_alphas(mu):
     beta = 0.5*(mu[:,0].real+mu[:,1].imag)+1j*0.5*(mu[:,1].real-mu[:,0].imag)
     exparg = -0.5*(mu[:,0].imag)**2 - 0.5*(mu[:,1].imag)**2 + 0.5*1j*(
         mu[:,1].real*mu[:,1].imag+mu[:,0].real*mu[:,0].imag)
-    
+
     return alpha, beta, exparg
 
 def reduce(nmax:int, eps:float, data:tuple):
@@ -142,11 +142,11 @@ def reduce_log(nmax:int, eps:float, data:tuple):
     alk = n1 * np.log(b2) + m1 * np.log(np.conjugate(a2))
     #alk = b2**n1 * np.conjugate(a2)**m1
 
-    sumkk = logsumexp(w1 + akk, axis = 1)
+    #sumkk = logsumexp(w1 + akk, axis = 1)
     #sumkk = np.sum(np.exp(w1)*akk,axis=1)
-    sumkl = logsumexp(w2 + akl, axis = 1)
+    #sumkl = logsumexp(w2 + akl, axis = 1)
     #sumkl = np.sum(np.exp(w2)*akl,axis=1)
-    sumlk = logsumexp(np.conjugate(w2) + alk, axis = 1)
+    #sumlk = logsumexp(np.conjugate(w2) + alk, axis = 1)
     #sumlk = np.sum(np.conjugate(np.exp(w2))*alk,axis=1)
     sumtot = np.concatenate((w1+akk, w2+akl, np.conjugate(w2)+alk), axis =1)
     
@@ -184,3 +184,69 @@ def reduce_log(nmax:int, eps:float, data:tuple):
     
     #return means.T, covs, nw, k1, norm
     return means.T, covs, nw, k1
+
+
+def reduce_log_full(nmax:int, eps:float, data:tuple):
+    """Find the weights of the reduced state with stellar rank nmax. The number of new weights is of order (nmax+1)^2.
+
+    Args: 
+        nmax : max number of photons in reduced state
+        eps : radius of target ring
+        data : input state parameters
+    Returns: 
+        new_data : output state parameters
+    """
+    means, covs, log_weights, num_k = data
+    
+    
+    k1 = nmax+1
+    
+    alpha, beta, exparg = mu_to_alphas(means)
+
+    #Remove the terms where alpha.real + alpha.imag = 0, and also beta
+    id1= np.where(alpha == 0)
+    id2= np.where(beta == 0) 
+    id3 = np.unique(np.concatenate((id1,id2)))
+    #Remove those entries
+    alpha = np.delete(alpha, id3)
+    beta = np.delete(beta, id3)
+    log_weights = np.delete(log_weights, id3)
+    exparg = np.delete(exparg, id3)
+    
+    log_weights += -exparg 
+   
+    log_weights += -0.5 * np.abs(alpha)**2 - 0.5 * np.abs(beta)**2
+    
+    w  = log_weights[np.newaxis,:]
+    a = alpha[np.newaxis,:]
+    b = beta[np.newaxis,:]
+
+    ns, ms = gen_indices_full(nmax)
+    n1 = ns[:,np.newaxis]
+    m1 = ms[:,np.newaxis]
+    n2 = ns[np.newaxis,:]
+    m2 = ms[np.newaxis,:]
+
+    #First compute j sum
+        
+    aj = n1 * np.log(a) + m1*np.log(np.conjugate(b))
+
+    tot = logsumexp(w + aj, axis = 1)
+    
+    #Now compute the nm sum for all j
+
+    exparg1 = -2*np.pi*1j*(n1*n2 - m1*m2)/k1
+    cnm = exparg1 - (n1+m1)*np.log(eps) + tot[:,np.newaxis]
+    
+    nw = logsumexp(cnm, axis = 0)
+    
+    #Generate the new means, and multiply new weights by the coefficients
+      
+    theta = 2*np.pi /k1
+    alpha = eps * np.exp(1j*theta*ns)
+    beta = eps * np.exp(1j*theta*ms)
+    means, cov, exparg = outer_coherent(alpha,beta)
+
+    nw += exparg
+    
+    return means.T, covs, nw, len(nw)

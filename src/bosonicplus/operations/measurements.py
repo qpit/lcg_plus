@@ -151,17 +151,6 @@ def ppnrd_povm_thermal(k, N, hbar =2):
     covs = np.array([np.eye(2)*hbar/2*(1+2*nbar) for nbar in nbars])
     means = np.repeat( np.zeros(2)[np.newaxis,:], k+1, axis = 0)
 
-    #log_norm = logsumexp(log_weights)
-
-    #log_weights = np.log(np.abs(weights))
-    #print(log_weights)
-    #log_weights = np.log(weights)
-    
-    #for i in range(k+1):
-        
-     #   if np.sign(weights) == -1:
-      #      log_weights[i] += 1j*np.pi #For negative coefficients
-
     data = means, covs, log_weights
     
     return data
@@ -263,7 +252,7 @@ def project_fock_thermal(data, mode, n ,r = 0.05, hbar = 2):
 
 # Homodyne measurement
 # ----------------------------
-def project_homodyne(data, mode, result, k, MP = False):
+def project_homodyne(data, mode, result, k):
     r"""Following Brask's Gaussian note (single mode)
     Do a homodyne x-measurement on one mode
     """
@@ -308,16 +297,9 @@ def project_homodyne(data, mode, result, k, MP = False):
         reweights_exp_arg = -0.5*sigma_B_inv[:,0,0]*(result - r_B[:,0])**2
         #Norm = np.sqrt(2*np.pi*sigma_B[:,0,0])
     
-        
-    #if MP: 
-        #reweights_exp = np.array([mp.exp(-0.5*i) for i in reweights_exp_arg])
-    #else:
-    
-    #reweights_exp = np.exp(-0.5*reweights_exp_arg)
     
     reweights = log_weights + reweights_exp_arg + np.log(prefactor)
-    #reweights = log_weights + reweights_exp_arg
-
+   
 
     data_A = r_A_prime, sigma_A_prime, reweights, k
     

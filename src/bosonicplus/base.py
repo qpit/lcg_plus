@@ -4,7 +4,7 @@ from thewalrus.decompositions import williamson
 from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
 from bosonicplus.states.wigner import Gauss
 from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
-from bosonicplus.states.reduce import reduce, reduce_log
+from bosonicplus.states.reduce import reduce, reduce_log, reduce_log_full
 
 from bosonicplus.sampling import *
 
@@ -71,16 +71,10 @@ class State:
         self.means_partial, self.covs_partial, self.log_weights_partial = new_gradients
         
 
-    def normalise(self):
+    def get_norm(self):
         r"""Calculate the norm by adding the weights together
         """
          
-        #if prec: 
-            
-            #norm = float(mp.re(mp.fsum([mp.exp(i) for i in self.log_weights])))
-            #norm = mp.re(mp.fsum([mp.exp(i) for i in self.log_weights]))
-        #else:
-        
         log_norm = logsumexp(self.log_weights)
 
         if self.num_k != self.num_weights:
@@ -90,6 +84,18 @@ class State:
         else:   
             self.log_norm = log_norm
             self.norm = np.real_if_close(np.exp(log_norm))
+
+    def normalise(self):
+        r"""Subtract norm from log_weights
+        """
+        if self.num_k != self.num_weights:
+            self.log_weights -= np.log(self.norm) 
+        else:
+            self.log_weights -= self.log_norm 
+            
+        self.weights /= self.norm
+
+        self.get_norm() #Populate norm
               
     def get_photon_number_moments(self):
         """https://github.com/XanaduAI/thewalrus/blob/master/thewalrus/symplectic.py line 354,
@@ -357,7 +363,7 @@ class State:
             data_out = project_fock_coherent(n, data_in, mode, inf)
         
         self.update_data(data_out)
-        self.normalise()
+        self.get_norm()
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
@@ -365,8 +371,6 @@ class State:
             print('Probability of measurement = {:.3e}'.format(self.norm))
             print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
-        
-        #self.norm = prob
 
     def post_select_fock_coherent_gradients(self, mode, n, inf = 1e-4, out = False):
         """Post select on counting n photons in given mode. New state has one less mode, so be careful with indexing.
@@ -390,7 +394,7 @@ class State:
         self.update_data(data_out)
         self.update_gradients(data_gradients)
         
-        self.normalise()
+        self.get_norm()
     
         if out:
             print(f'Measuring {n} photons in mode {mode}.')
@@ -458,10 +462,11 @@ class State:
             print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
             
         self.update_data(data_out)
+        self.get_norm()
        
 
 
-    def post_select_homodyne(self, mode, angle, result, MP = False):
+    def post_select_homodyne(self, mode, angle, result):
 
         #First, rotate the mode by -angle
         S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))
@@ -469,8 +474,9 @@ class State:
 
         data_in = self.means, self.covs, self.log_weights
         
-        data_out = project_homodyne(data_in, mode, result, self.num_k, MP)
+        data_out = project_homodyne(data_in, mode, result, self.num_k)
         self.update_data(data_out)
+        self.get_norm()
         
 
     def get_wigner_bosonic(self, xvec, pvec, indices = None):
@@ -529,7 +535,7 @@ class State:
             covs = self.covs
     
         log_weights = self.log_weights
-        log_norm = self.log_norm
+        #log_norm = self.log_norm
         norm = self.norm
         means = self.means
         covs = self.covs
@@ -563,7 +569,6 @@ class State:
         wigner_exp_arg = np.transpose(exp_arg, [2,0,1])
         
         logwig = logsumexp(log_weights[:,np.newaxis,np.newaxis] + wigner_exp_arg, axis = 0 )
-        #W = prefactor*np.exp(logwig-log_norm.real)*np.cos(log_norm.imag)
         W = prefactor*np.exp(logwig)/norm
         return W
 
@@ -634,16 +639,18 @@ class State:
         self.update_data(data_new)
 
     def add_state(self, state):
-        r"""Tensor product of a state with a user-specified state in sum of Gaussian representation
+        """Tensor product of a state with a user-specified state in sum of Gaussian representation
         """
-        if self.num_k != self.num_weights and state.num_k != state.num_weights: 
-            raise ValueError('Doesnt handle the fast rep correctly. Need to consider the cross terms just like in the overlap functions.')
+        #if self.num_k != self.num_weights and state.num_k != state.num_weights: 
+            #raise ValueError('Doesnt handle the fast rep correctly. Need to consider the cross terms just like in the overlap functions.')
         
         means1, cov1, log_weights1 = self.means, self.covs, self.log_weights
         means2, cov2, log_weights2 = state.means, state.covs, state.log_weights
-
-        #k1 = self.num_k
-        #k2 = state.num_k
+    
+        k1 = self.num_k
+        k2 = state.num_k
+        print(k1 != self.num_weights)
+        print(k2 != state.num_weights)
         
         #In coherent picture, covariances are the same for every weight
         if len(cov1) != 1 or len(cov2) != 1:
@@ -652,27 +659,67 @@ class State:
             
             new_cov = np.array([block_diag(*list([np.squeeze(cov1),np.squeeze(cov2)]))])
 
-        #Add expargs of weights together
-        new_weights = np.sum(np.array(list(it.product(log_weights1, log_weights2))),axis=1) 
+        #Deal with different fast rep scenarios separately for correct ordering
+    
+        if k1 != self.num_weights and k2 != state.num_weights:  #Both are in fast rep
             
-        
-        num = len(new_weights)
-        
-        #Hack to fix list of list problem
-        
-        new_means = list(it.product(means1,means2))
-        new_means = np.array([np.concatenate(i) for i in new_means])
-        
-       
-        data_new = new_means, new_cov, new_weights, num
-        
-        self.update_data(data_new)
+           
+            nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[0:k2]))),axis=1) 
+            nw2 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[k2::]))),axis=1) 
+            nw3 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[0:k2]))),axis=1) 
+            nw4 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::]))),axis=1) - np.log(2) #To counteract +2*np.log(2)
+            nw5 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::].conjugate()))),axis=1) - np.log(2)
+    
+            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[0:k2]))])
+            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[k2::]))])
+            nm3 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[0:k2]))])
+            nm4 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::]))])
+            nm5 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::].conjugate()))])
+    
+            new_weights = np.concatenate((nw1,nw2,nw3,nw4,nw5))
+            new_means = np.concatenate((nm1,nm2,nm3,nm4,nm5))
+            
+            num = k1*k2
+    
+        elif k1 != self.num_weights: #self is in fast rep
 
-    #def reduce_pure(self, nmax):
-     #   data = self.means, self.covs, self.weights, self.num_k
-      #  cnms = [get_cnm(i, nmax, data) for i in range(nmax+1)]
-       # fock_coeffs = cnms/cnms[-1]
-        #self.update_data(gen_fock_superpos_coherent(fock_coeffs, 1e-4, fast=True))
+            nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2))),axis=1) 
+            nw2 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2))),axis=1)
+
+            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2))])
+            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2))])
+            
+            new_weights = np.concatenate((nw1,nw2))
+            new_means = np.concatenate((nm1,nm2))
+            
+            num = k1
+
+        elif k2 != state.num_weights: #state is in fast rep
+            nw1 = np.sum(np.array(list(it.product(log_weights1, log_weights2[0:k2]))),axis=1) 
+            nw2 = np.sum(np.array(list(it.product(log_weights1, log_weights2[k2::]))),axis=1)
+
+            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[0:k2]))])
+            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[k2::]))])
+            
+            new_weights = np.concatenate((nw1,nw2))
+            new_means = np.concatenate((nm1,nm2))
+            
+            num = k2
+            
+        else: #Neither are in fast rep
+            
+            new_weights = np.sum(np.array(list(it.product(log_weights1, log_weights2))),axis=1) 
+            #Hack to fix list of list problem
+            new_means = list(it.product(means1,means2))
+            new_means = np.array([np.concatenate(i) for i in new_means])
+  
+            num = len(new_weights)
+  
+           
+        data_new = new_means, new_cov, new_weights, num
+            
+        self.update_data(data_new)
+        return self
 
 
     def reduce_equal_means(self):
@@ -747,18 +794,18 @@ class State:
         
         eps = eps_superpos_coherent(nmax, infid)
 
-        #Perform the reduction
-        new_data = reduce_log(nmax, eps, data)
-        
-        #new_means, new_cov, new_weights, new_k, new_norm = new_data
-        #new_data = new_means, new_cov, new_weights, new_k, self.norm
-        #new_data[-1] = self.norm
+        if self.num_k != self.num_weights:
+
+            #Perform the reduction with fast rep
+            new_data = reduce_log(nmax, eps, data)
+        else:
+            #Full rep
+            new_data = reduce_log_full(nmax, eps, data)
+            
         
         self.update_data(new_data)
+        self.get_norm()
         self.normalise()
-        #self.norm = np.sum(self.weights).real
-        #self.normalise()
-        #self.update_data(new_data)
     
         #Re-apply the squeezing
         self.apply_symplectic(S)

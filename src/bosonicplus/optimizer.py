@@ -152,13 +152,10 @@ class GBS_optimizer:
         method : from basinhopping, SLSQP or L-BFGS-B works best 
         niter : see basinhopping
         setpsize : see basinhopping
-        bounds : set your own custom bounds. 
-        out (bool) print status of optimisation
+        disp (bool) print status of optimisation
 
         """
 
-        
-        
         minimizer_kwargs = {'args': self.costf_args, 
                             'method': method,
                             'jac' : self.gradients,

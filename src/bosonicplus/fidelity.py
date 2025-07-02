@@ -110,7 +110,7 @@ def overlap_full_log(state1, state2):
   
     #weighted_exp = ( state1.weights[:,np.newaxis] * state2.weights[np.newaxis,:] * hbar ** N
                #* np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) )
-    overlap = logsumexp(weighted_exp)/(n1*n2) * state1.hbar ** N
+    overlap = np.exp(logsumexp(weighted_exp))/(n1*n2) * state1.hbar ** N
                
     #overlap = np.sum(weighted_exp)/(state1.norm*state2.norm)
     

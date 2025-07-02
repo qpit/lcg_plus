@@ -136,6 +136,7 @@ def prepare_gkp_bosonic(state, epsilon, ampl_cutoff = 1e-12, representation="rea
                 
         state = State(1)
         state.update_data([means, covs, np.log(weights), len(weights)])
+        state.get_norm() #Populate norm
         return state
 
 
@@ -183,7 +184,7 @@ def prepare_fock_bosonic(n, r=0.05):
 
     state = State(1)
     state.update_data([means, covs, np.log(weights), len(weights)])
-    state.norm = np.sum(weights)
+    state.get_norm() #Populate norm
 
     return state
 
@@ -209,8 +210,7 @@ def prepare_fock_log(n, r=0.05):
     means, covs, log_weights, num_k = gen_fock_log(n,r)
     
     state.update_data([means, covs, log_weights, len(log_weights)])
-    state.normalise()
-    #state.norm = np.exp(logsumexp(log_weights))
+    state.get_norm() #Populate norm
 
     return state
 
@@ -275,5 +275,6 @@ def prepare_cat_bosonic(a, theta, p, MP = False):
 
     state = State(1)
     state.update_data([means, covs, weights])
+    state.get_norm() #Populate norm
     
     return state

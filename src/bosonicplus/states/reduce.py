@@ -1,6 +1,6 @@
 import numpy as np
-from bosonicplus.states.coherent import outer_coherent, gen_indices, gen_indices_full
-from scipy.special import logsumexp
+from bosonicplus.states.coherent import outer_coherent, gen_indices, gen_indices_full, gen_fock_superpos_coherent
+from scipy.special import logsumexp, factorial
 
 def mu_to_alphas(mu):
     """Compute the |alpha><beta| values from the mean
@@ -250,3 +250,57 @@ def reduce_log_full(nmax:int, eps:float, data:tuple):
     nw += exparg
     
     return means.T, covs, nw, len(nw)
+
+
+def reduce_log_pure(nmax:int, eps:float, data:tuple):
+    """Find the weights of the reduced state with stellar rank nmax. The number of new weights is of order (nmax+1)^2.
+
+    Args: 
+        nmax : max number of photons in reduced state
+        eps : radius of target ring
+        data : input state parameters
+    Returns: 
+        new_data : output state parameters
+    """
+    #raise ValueError('Not tested with log_weights. Review.')
+    means, covs, log_weights, num_k = data
+    
+    k1 = nmax+1
+    
+    alpha, beta, exparg = mu_to_alphas(means)
+    
+    log_weights += -exparg 
+   
+    log_weights += -0.5 * np.abs(alpha)**2 - 0.5 * np.abs(beta)**2
+
+    ns = np.arange(k1)
+    n1 = ns[:,np.newaxis]
+    m1 = nmax
+
+    if num_k == len(log_weights):
+        fast = False
+        w = log_weights[np.newaxis,:]
+        a = alpha[np.newaxis,:]
+        b = beta[np.newaxis,:]
+    
+        akl = n1 * np.log(a) + m1 * np.log(np.conjugate(b))
+        sumtot = w + akl
+    
+    else:
+        fast =True
+        w1 = log_weights[0:num_k][np.newaxis,:]
+        w2 = log_weights[num_k:][np.newaxis,:] - np.log(2) #Because we use 2 Re ( weights[num_k:] ) 
+        a1 = alpha[0:num_k][np.newaxis,:]
+        a2 = alpha[num_k:][np.newaxis,:]
+        b2 = beta[num_k:][np.newaxis,:]
+
+        #First compute kl sum
+        akk = n1 * np.log(a1) + m1 * np.log(np.conjugate(a1)) 
+        akl = n1 * np.log(a2) + m1 * np.log(np.conjugate(b2)) 
+        alk = n1 * np.log(b2) + m1 * np.log(np.conjugate(a2))
+        sumtot = np.concatenate((w1+akk, w2+akl, np.conjugate(w2)+alk), axis =1)
+    
+    rho = logsumexp(sumtot, axis = 1) - 0.5 * np.log(factorial(ns))
+    coeffs = np.exp(rho) 
+    
+    return gen_fock_superpos_coherent(coeffs, 1e-3, eps = eps, fast = fast)

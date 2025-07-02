@@ -4,7 +4,7 @@ from thewalrus.decompositions import williamson
 from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
 from bosonicplus.states.wigner import Gauss
 from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
-from bosonicplus.states.reduce import reduce, reduce_log, reduce_log_full
+from bosonicplus.states.reduce import reduce, reduce_log, reduce_log_full, reduce_log_pure
 
 from bosonicplus.sampling import *
 
@@ -98,20 +98,35 @@ class State:
         self.get_norm() #Populate norm
               
     def get_photon_number_moments(self):
-        """https://github.com/XanaduAI/thewalrus/blob/master/thewalrus/symplectic.py line 354,
-        but this only worked for a single mode covariance matrix. Here its adapted to get the
-        sum of average photon numbers for multimode states.
+        """Dodonov and Man'ko https://doi.org/10.1103/PhysRevA.50.813
         """
-        cov_tr = np.trace(self.covs, axis1=1,axis2=2)
-        mu_sq = np.einsum("...j,...j", self.means, self.means)
 
-        covsq_tr = np.trace(np.einsum("...jk,...kl", self.covs, self.covs), axis1 = 1, axis2=2)
-        mucov = np.einsum("...j,...jk,...k", self.means, self.covs, self.means)
+        #Get rid of the hbar 
+        covs = self.covs / self.hbar
+        means = self.means /np.sqrt(self.hbar)
         
-        num = self.num_modes
+        cov_tr = np.trace(covs, axis1=1,axis2=2)
+        cov_det = np.linalg.det(covs)
+        
+
+        mu_sq = np.einsum("...j,...j", means, means)
+
+        exk = 1/2 *(cov_tr + mu_sq - 1)
+
+        ex = np.exp(logsumexp(self.log_weights + np.log(exk))) / self.norm
+
+        #covsq_tr = np.trace(np.einsum("...jk,...kl", covs, covs), axis1 = 1, axis2=2)
+        mucov = np.einsum("...j,...jk,...k", means, covs, means)
+
+        vark = 1/2 * (cov_tr**2 -2 * cov_det - 0.5) + mucov
+    
+        var = np.exp(logsumexp(self.log_weights + np.log(vark))) /self.norm 
+
+        #num = self.num_modes
             
-        ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*self.hbar)-1/2*num))/self.norm
-        var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * self.hbar**2) - 1 / 4*num)/self.norm)
+        #ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*self.hbar)-1/2*num))/self.norm
+        
+        #var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * self.hbar**2) - 1 / 4*num)/self.norm)
        
         
         return ex, var
@@ -649,8 +664,6 @@ class State:
     
         k1 = self.num_k
         k2 = state.num_k
-        print(k1 != self.num_weights)
-        print(k2 != state.num_weights)
         
         #In coherent picture, covariances are the same for every weight
         if len(cov1) != 1 or len(cov2) != 1:
@@ -773,7 +786,7 @@ class State:
         self.update_data(reduced_data)
         
         
-    def reduce(self, nmax:int, infid = 1e-6):
+    def reduce_pure(self, nmax:int, infid = 1e-6):
         """Map the state to O((nmax+1)**2) Gaussians
         Args:
             nmax : max photon number
@@ -785,32 +798,69 @@ class State:
         #invert the symplectic
         
         D, S = williamson(self.covs[0])
+        if np.round(np.sum(np.diag(D)),1) != 2.0:
+            raise ValueError('State not pure')
         
         #Remove any squeezing
         self.apply_symplectic(np.linalg.inv(S))
-        
-        
+
         data = self.means, self.covs, self.log_weights, self.num_k
         
         eps = eps_superpos_coherent(nmax, infid)
+        new_data = reduce_log_pure(nmax, eps, data)
 
-        if self.num_k != self.num_weights:
-
-            #Perform the reduction with fast rep
-            new_data = reduce_log(nmax, eps, data)
-        else:
-            #Full rep
-            new_data = reduce_log_full(nmax, eps, data)
-            
-        
         self.update_data(new_data)
         self.get_norm()
         self.normalise()
     
         #Re-apply the squeezing
         self.apply_symplectic(S)
-        
 
+
+    def reduce_mixed(self, sd = 6, infid = 1e-6):
+        """Map the state to O((nmax+1)**2) Gaussians
+        Args:
+            nmax : max photon number
+        Returns:
+            updates the state data
+    
+        """
+        
+        #invert the symplectic
+        
+        D, S = williamson(self.covs[0])
+        nu = D - np.eye(2)
+        
+        #Remove any squeezing
+        self.apply_symplectic(np.linalg.inv(S))
+        
+        #Remove thermal terms from cov
+        data = self.means, self.covs - nu, self.log_weights, self.num_k
+        self.update_data(data)
+        
+        #Find nmax from first two photon number moments
+        nbar, nvar = self.get_photon_number_moments()
+        nmax = int( np.ceil(nbar.real+sd*np.sqrt(nvar.real)))
+
+        eps = eps_superpos_coherent(nmax, infid)
+        
+        if self.num_k != self.num_weights:
+            #Perform the reduction with fast rep
+            new_data = reduce_log(nmax, eps, data)
+  
+        else:
+            #Perform the reduction with full rep
+            new_data = reduce_log_full(nmax, eps, data)
+
+        self.update_data(new_data)
+        self.get_norm()
+        self.normalise()
+        
+    
+        #Re-apply the thermal noise and the squeezing
+        self.covs += nu
+        self.apply_symplectic(S)
+        
 
 
     def sample_dyne(self, modes, shots=1, covmat = [], method = 'normal', prec= False):

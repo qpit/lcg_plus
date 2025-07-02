@@ -109,10 +109,10 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None, norm = True, fast =Tru
         coeffs (list/array):  the coefficients in front of the number states, coeff = [c0, c1, c2, ... c_nmax] 
         infid (float): infidelity of approx
     Returns: 
-        means_new (ndarray): list of means
+        means (ndarray): list of means
         cov (array): vacuum cov
-        weights_new (ndarray): list of weights 
-        k (int) : N + 1
+        log_weights (ndarray): list of weights 
+        k (int) : nmax + 1
     """
     #raise ValueError('Not fixed for log weights form (log(-1) = 1j*np.pi)')
 

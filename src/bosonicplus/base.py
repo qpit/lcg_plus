@@ -356,6 +356,11 @@ class State:
         self.means = means
         self.covs = cov
 
+        #Update the gradients if any
+        if hasattr(self, "means_partial"):
+            self.means_partial =np.einsum("...jk,...k", X, self.means_partial)
+            self.covs_partial =np.einsum("...jk,...kl,...lm", X, self.covs_partial, X.T)
+
     def post_select_fock_coherent(self, mode, n, inf = 1e-4, red_gauss = True, out = False):
         """Post select on counting n photons in mode. New state has one less mode, so be careful with indexing.
     
@@ -469,6 +474,9 @@ class State:
         data_in = self.means, self.covs, self.log_weights
 
         data_out = project_ppnrd_thermal(data_in, mode, n, M)
+
+        self.update_data(data_out)
+        self.get_norm()
     
         if out:
             print(f'Measuring {n} clicks in mode {mode}.')
@@ -476,8 +484,7 @@ class State:
             print('Probability of measurement = {:.3e}'.format(self.norm))
             print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
             
-        self.update_data(data_out)
-        self.get_norm()
+        
        
 
 

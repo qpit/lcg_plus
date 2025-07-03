@@ -175,19 +175,19 @@ def plot_wigner_marginals(W, x, p, **kwargs):
         ax_p.set_ylabel(r"$p(2\sqrt{\frac{1}{\sqrt{3}}\pi\hbar})^{-1}$")
         
     
-
-    #Make grid for Wigner function and plot it 
-    make_grid(ax, x/gridx, p/gridp)
+    if xp_grid:
+        #Make grid for Wigner function and plot it 
+        make_grid(ax, x/gridx, p/gridp)
     extent[0:2]/=gridx
     extent[2:]/=gridp
     im = ax.imshow(W, cmap='RdBu', norm = nrm, extent = extent, interpolation = 'bilinear')
     ax.set_aspect("equal")
     
 
-    
-    #Make the grid for the marginals
-    make_grid(ax_x, x/gridx, marginal_x, axis='x')
-    make_grid(ax_p, marginal_p, p/gridp, axis='p')
+    if xp_grid:
+        #Make the grid for the marginals
+        make_grid(ax_x, x/gridx, marginal_x, axis='x')
+        make_grid(ax_p, marginal_p, p/gridp, axis='p')
 
     #Plot the marginals
     ax_x.plot(x/gridx, marginal_x, linewidth = lw)

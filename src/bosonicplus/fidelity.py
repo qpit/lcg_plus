@@ -9,7 +9,7 @@ def overlap_bosonic(state1, state2):
     if state1.hbar != state2.hbar:
         raise ValueError("hbar is not the same in both states.")
 
-    if state1.num_k != state1.num_weights or state2.num_k != state2.num_weights:
+    if state1.num_k != state1.num_weights and state2.num_k != state2.num_weights:
         return overlap_reduced(state1, state2)
     else:
         return overlap_full(state1, state2)
@@ -22,13 +22,13 @@ def overlap_log(state1, state2):
     if state1.hbar != state2.hbar:
         raise ValueError("hbar is not the same in both states.")
 
-    if state1.num_k != state1.num_weights or state2.num_k != state2.num_weights:
+    if state1.num_k != state1.num_weights and state2.num_k != state2.num_weights:
         return overlap_reduced_log(state1, state2)
     else:
         return overlap_full_log(state1, state2)
         
 
-def overlap_full(state1, state2, MP = False):
+def overlap_full(state1, state2):
     """Calculate the overlap of two states in sum-of-gaussian representation.
     If state1 == state2, returns the purity.
     
@@ -43,23 +43,18 @@ def overlap_full(state1, state2, MP = False):
     if state1.num_modes != state2.num_modes:
         raise ValueError('Number of modes is not the same in both states.')
 
-
     N = state1.num_modes
 
     weights1 = state1.weights
     weights2 = state2.weights
     
-    if MP:
-        norm1 = mp.fsum(weights1)
-        norm2 = mp.fsum(weights2)
-
     deltas = state1.means[:,np.newaxis,:] - state2.means[np.newaxis,:,:]
 
-    if state1.num_covs == 1 or state2.num_covs == 1:
+    if state1.num_covs == 1 and state2.num_covs == 1:
         covsum = state1.covs + state2.covs #covs are the same shape, so no broadcasting needed
     else:
         covsum = state1.covs[:,np.newaxis,:] + state2.covs[np.newaxis,:,:] 
-
+        
     covsum_inv = np.linalg.inv(covsum)
     exp_arg = np.einsum('...j,...jk,...k', deltas, covsum_inv, deltas)
   
@@ -98,7 +93,7 @@ def overlap_full_log(state1, state2):
 
     deltas = state1.means[:,np.newaxis,:] - state2.means[np.newaxis,:,:]
 
-    if state1.num_covs == 1 or state2.num_covs == 1:
+    if state1.num_covs == 1 and state2.num_covs == 1:
         covsum = state1.covs + state2.covs #covs are the same shape, so no broadcasting needed
     else:
         covsum = state1.covs[:,np.newaxis,:] + state2.covs[np.newaxis,:,:] 
@@ -149,11 +144,13 @@ def overlap_reduced(state1, state2):
     deltas = state1.means[:,np.newaxis,:] - state2.means[np.newaxis,:,:]
     deltas_special = state1.means[k1:,np.newaxis,:] - np.conjugate(state2.means[np.newaxis,k2:,:])
 
+    
     covsum = state1.covs + state2.covs #covs are the same shape, so no broadcasting needed
     
     covsum_inv = np.linalg.inv(covsum)
     
     exp_arg = np.einsum('...j,...jk,...k', deltas, covsum_inv, deltas)
+
     exp_arg_special = np.einsum('...j,...jk,...k', deltas_special, covsum_inv, deltas_special)
 
     weighted_exp = weights1[:,np.newaxis] * weights2[np.newaxis,:]*state1.hbar ** N* np.exp( -0.5 * exp_arg) / np.sqrt( np.linalg.det(covsum)) 

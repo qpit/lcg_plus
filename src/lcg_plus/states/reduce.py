@@ -1,5 +1,5 @@
 import numpy as np
-from bosonicplus.states.coherent import outer_coherent, gen_indices, gen_indices_full, gen_fock_superpos_coherent
+from lcg_plus.states.coherent import outer_coherent, gen_indices, gen_indices_full, gen_fock_superpos_coherent
 from scipy.special import logsumexp, factorial
 
 def mu_to_alphas(mu):

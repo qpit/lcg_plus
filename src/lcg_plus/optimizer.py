@@ -1,8 +1,8 @@
 from scipy.optimize import basinhopping, minimize
-from bosonicplus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
+from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
 import numpy as np
-from bosonicplus.conversions import dB_to_r, r_to_dB
-from bosonicplus.cost_functions import symm_effective_squeezing
+from lcg_plus.conversions import dB_to_r, r_to_dB
+from lcg_plus.cost_functions import symm_effective_squeezing
 import pickle
 import os.path
 

@@ -1,19 +1,19 @@
 import numpy as np
-from bosonicplus.interferometers.symplectics import rotation
-from bosonicplus.interferometers.ops import apply_symplectic
-from bosonicplus.states.from_sf import prepare_cat_bosonic, prepare_gkp_bosonic
-from bosonicplus.states.coherent import outer_coherent, eps_fock_coherent, eps_superpos_coherent
-from bosonicplus.states.wigner import get_wigner_coherent
+from lcg_plus.interferometers.symplectics import rotation
+from lcg_plus.interferometers.ops import apply_symplectic
+from lcg_plus.states.from_sf import prepare_cat_bosonic, prepare_gkp_bosonic
+from lcg_plus.states.coherent import outer_coherent, eps_fock_coherent, eps_superpos_coherent
+from lcg_plus.states.wigner import get_wigner_coherent
 from strawberryfields.backends.states import BaseBosonicState
-from bosonicplus.plotting import plot_wigner_marginals
+from lcg_plus.plotting import plot_wigner_marginals
 import matplotlib.pyplot as plt
 from scipy.special import factorial
 import strawberryfields as sf
 from strawberryfields.backends.bosonicbackend import ops
 
-from bosonicplus.interferometers.parameters import gen_interferometer_params
-from bosonicplus.interferometers.construct import build_interferometer
-from bosonicplus.measurements.photon_counting import post_select_fock_coherent
+from lcg_plus.interferometers.parameters import gen_interferometer_params
+from lcg_plus.interferometers.construct import build_interferometer
+from lcg_plus.measurements.photon_counting import post_select_fock_coherent
 
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp
 

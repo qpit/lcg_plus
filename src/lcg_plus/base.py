@@ -1,14 +1,14 @@
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
-from bosonicplus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
-from bosonicplus.states.wigner import Gauss
-from bosonicplus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
-from bosonicplus.states.reduce import reduce, reduce_log, reduce_log_full, reduce_log_pure
+from lcg_plus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
+from lcg_plus.states.wigner import Gauss
+from lcg_plus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
+from lcg_plus.states.reduce import reduce, reduce_log, reduce_log_full, reduce_log_pure
 
-from bosonicplus.sampling import *
+from lcg_plus.sampling import *
 
-from bosonicplus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
@@ -115,12 +115,18 @@ class State:
 
         ex = np.exp(logsumexp(self.log_weights + np.log(exk))) / self.norm
 
-        #covsq_tr = np.trace(np.einsum("...jk,...kl", covs, covs), axis1 = 1, axis2=2)
+        covsq_tr = np.trace(np.einsum("...jk,...kl", covs, covs), axis1 = 1, axis2=2)
+        #covsq_tr = np.trace( covs@covs, axis1 = 1, axis2 = 2)
         mucov = np.einsum("...j,...jk,...k", means, covs, means)
 
-        vark = 1/2 * (cov_tr**2 -2 * cov_det - 0.5) + mucov
+        vark = 1/2 * (cov_tr**2 - 2 * cov_det - 0.5) + mucov
+        
+
+        #vark = 1/2 * (covsq_tr + 2*mucov - 0.5)
+        #vark = 1/2 * (covsq_tr + mucov - 0.5)
     
         var = np.exp(logsumexp(self.log_weights + np.log(vark))) /self.norm 
+        #var = np.sum(self.weights * vark)/self.norm
 
         #num = self.num_modes
             
@@ -780,9 +786,6 @@ class State:
             unique_means = np.vstack((means_re, means_imag))
             unique_log_weights = np.hstack((weights_re, weights_imag))
             num_k = np.sum(reals == True)
-            
-            if out:
-                print('num_k: ', num_k)
        
         if fast:
             reduced_data = unique_means, cov, unique_log_weights, num_k

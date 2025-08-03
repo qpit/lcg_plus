@@ -1,8 +1,8 @@
-from bosonicplus.states.coherent import order_infidelity_fock_coherent
-from bosonicplus.states.nongauss import prepare_fock_coherent
-from bosonicplus.states.wigner import wig_mn
-from bosonicplus.plotting import plot_wig
-from bosonicplus.fidelity import fidelity_with_wigner
+from lcg_plus.states.coherent import order_infidelity_fock_coherent
+from lcg_plus.states.nongauss import prepare_fock_coherent
+from lcg_plus.states.wigner import wig_mn
+from lcg_plus.plotting import plot_wig
+from lcg_plus.fidelity import fidelity_with_wigner
 from matplotlib import pyplot as plt
 #import strawberryfields as sf
 import numpy as np

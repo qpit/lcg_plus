@@ -6,16 +6,19 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from mpmath import mp, fp
 hbar = 2
-from bosonicplus.sampling import *
+from lcg_plus.sampling import *
 
 
-def plot_wig(W, x, p, colorbar = True, xlabel = None, ylabel = None, gridx = None, gridp=None, ax = None, hbar = 2, contourf = False):
+def plot_wig(W, x, p, colorbar = True, xlabel = None, ylabel = None, gridx = None, gridp= None, ax = None, hbar = 2, contourf = False, scale = None):
     if not ax:
         ax = plt.gca()
         
     #W = np.round(W.real, 4)
-    scale = np.max(W.real)
+    if scale is None:
+        scale = np.max(W.real)
     nrm = mpl.colors.Normalize(-scale, scale)
+    
+    
     #if GKP:
         #im = plt.contourf(q1 /np.sqrt(hbar * np.pi), q2 /np.sqrt(hbar * np.pi), W, 100, cmap=cm.RdBu, norm = nrm)
         #ax.set_xlabel(r"$x(\sqrt{\hbar\pi})^{-1}$", fontsize=12)

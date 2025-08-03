@@ -1,6 +1,6 @@
 import numpy as np
-from bosonicplus.charfun import char_fun, char_fun_gradients
-from bosonicplus.conversions import dB_to_r, Delta_to_dB
+from lcg_plus.charfun import char_fun, char_fun_gradients
+from lcg_plus.conversions import dB_to_r, Delta_to_dB
 
 
 def get_gkp_stabilizer(lattice):

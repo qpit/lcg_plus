@@ -168,7 +168,7 @@ def norm_coherent(N, eps):
     return norm
     
 def order_infidelity_fock_coherent(N, alpha):
-    """give infidelity of N fock approximation using given alpha - Eq? of M&A
+    """give infidelity of N fock approximation using given alpha - Eq 28 of M&A
     """
     return factorial(N)/factorial(2*N+1)*alpha**(2*(N+1))
 

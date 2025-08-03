@@ -1,8 +1,8 @@
 import numpy as np
 from math import factorial
-from bosonicplus.base import State
+from lcg_plus.base import State
 from .coherent import gen_fock_coherent, gen_sqz_cat_coherent, gen_fock_coherent_old
-from bosonicplus.gkp_squeezing import gen_gkp_coherent
+from lcg_plus.gkp_squeezing import gen_gkp_coherent
 from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 
 
@@ -53,13 +53,13 @@ def prepare_gkp_nonlinear_sqz(n, lattice, N = 1, inf = 1e-4, fast=True):
     
     return state
 
-def prepare_phssv(r, theta, eta):
+def prepare_phssv(r, T=0.99, eta=1):
     """Prepare a lossy photon subtracted single mode squeezed vacuum state
     by splitting the state on a 99:1 beam splitter, and heralding on a click 
-    of the ancillary vacuum mode. Apply pure loss channel to output state
+    of the ancillary vacuum mode. Apply pure loss channel to output state.
     Args: 
         r : squeezing
-        theta : T of beamsplitter (0.99) 
+        T : transmissivity of beamsplitter (0.99) 
         eta : transmittivity of the loss channel
     Returns:
         bosonicplus.base.State
@@ -72,7 +72,7 @@ def prepare_phssv(r, theta, eta):
     state.add_state(State(1))
     
     #99:1 beamsplitter
-    state.apply_symplectic(xxpp_to_xpxp(beam_splitter(np.arccos(np.sqrt(theta)),0)))
+    state.apply_symplectic(xxpp_to_xpxp(beam_splitter(np.arccos(np.sqrt(T)),0)))
     
     #Measure a click in mode 1
     state.post_select_ppnrd_thermal(1,1,1) 

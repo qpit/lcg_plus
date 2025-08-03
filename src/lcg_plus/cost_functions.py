@@ -1,9 +1,9 @@
-from bosonicplus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
-from bosonicplus.operations.gbs import build_interferometer, build_interferometer_gradients
-from bosonicplus.conversions import dB_to_r, r_to_dB, Delta_to_dB
+from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
+from lcg_plus.operations.gbs import build_interferometer, build_interferometer_gradients
+from lcg_plus.conversions import dB_to_r, r_to_dB, Delta_to_dB
 import numpy as np
-from bosonicplus.effective_sqz import effective_sqz, effective_sqz_gradients
-from bosonicplus.gkp_squeezing import Q_expval, Q_expval_gradients
+from lcg_plus.effective_sqz import effective_sqz, effective_sqz_gradients
+from lcg_plus.gkp_squeezing import Q_expval, Q_expval_gradients
 
 def state_prep_GBS(params, 
                    nmodes, 
@@ -105,7 +105,7 @@ def symm_effective_squeezing_gradients(*args):
     Dx, Dx_grad = effective_sqz_gradients(state, lattice+'x')
     Dp, Dp_grad = effective_sqz_gradients(state, lattice+'p')
 
-    eff = Dx + Dp 
+    eff = Dx + Dp  #Should be np.sqrt(0.5*(Dx**2 + Dp**2))
     df = Dx_grad + Dp_grad
         
     return 0.5*eff.real, 0.5*df.real

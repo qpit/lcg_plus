@@ -4,8 +4,8 @@ import itertools as it
 from mpmath import mp
 from scipy.special import comb
 from math import fsum
-from bosonicplus.base import State
-from bosonicplus.states.coherent import gen_fock_log
+from lcg_plus.base import State
+from lcg_plus.states.coherent import gen_fock_log
 
 hbar = 2
 

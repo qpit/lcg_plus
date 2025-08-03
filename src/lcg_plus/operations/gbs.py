@@ -1,7 +1,7 @@
 import numpy as np
 #from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, beam_splitter, rotation, squeezing, expand_vector
-from bosonicplus.base import State
-from bosonicplus.operations.symplectic import *
+from lcg_plus.base import State
+from lcg_plus.operations.symplectic import *
 from copy import copy
 
 def build_interferometer(params : dict, nmodes : int, out = False, setting = 'no_phase'):

@@ -16,7 +16,7 @@ Please see our preprint for more information.
 >Olga Solodovnikova, Ulrik L. Andersen, Jonas S. Neergaard-Nielsen "Fast simulations of continuous-variable circuits using the coherent state decomposition" [arXiv:2508.06175 \[quant-ph\]](http://arxiv.org/abs/2508.06175)
 
 ## Tutorials
-See Jupyter notebooks in `demos_final/`.
+See Jupyter notebooks in `demos/`.
 
 
 

@@ -1,6 +1,20 @@
+# Copyright © 2025 Technical University of Denmark
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import numpy as np
 from scipy.special import factorial, genlaguerre
-from mpmath import mp
 from scipy.stats import multivariate_normal
 from numba import jit, njit
 hbar = 2
@@ -69,15 +83,8 @@ def Gauss(sigma, mu, xvec, pvec, MP = False):
     exparg = - 0.5 * np.einsum("j...,...j", delta, np.einsum("...jk,k...",  sigma_inv, delta))
 
     Norm = 1/np.sqrt(np.linalg.det(sigma*2*np.pi))
-
-    if MP:
-        G_mp = np.zeros(exparg.shape, dtype='complex')
-        for i in range(exparg.shape[0]):
-            for j in range(exparg.shape[1]):
-                G_mp[i,j] = mp.fprod([Norm, mp.exp(exparg[i,j])])
-        return G_mp
-    else: 
-        return Norm * np.exp(exparg)  
+    
+    return Norm * np.exp(exparg)  
 
 
 

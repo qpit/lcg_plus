@@ -1,3 +1,18 @@
+# Copyright © 2025 Technical University of Denmark
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import numpy as np
 from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
@@ -12,9 +27,7 @@ from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 import itertools as it
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
-from mpmath import mp
 from math import fsum
-
 
 
 hbar = 2
@@ -137,14 +150,12 @@ class State:
         
         return ex, var
 
-    def get_mean(self, MP = False):
+    def get_mean(self):
         """Get first moment
         """
-        if MP:
-            dim = len(self.means[0])
-            mu = np.array([float(mp.re(mp.fsum(self.weights * self.means[:,i]))) for i in range(dim)])
-        else:
-            mu = np.real_if_close(np.sum(self.weights[:,np.newaxis] * self.means, axis = 0)) 
+       
+       
+        mu = np.real_if_close(np.sum(self.weights[:,np.newaxis] * self.means, axis = 0)) 
         
         if self.num_k != self.num_weights:
             mu = mu.real
@@ -153,19 +164,15 @@ class State:
         return mu
                 
 
-    def get_cov(self, MP = False):
+    def get_cov(self):
         """Get second moment. 
         """
         offset = np.tensordot(self.mean, self.mean, axes =0)
         
         sigma_tilde = self.covs + np.einsum("...j,...k", self.means, self.means)
         
-        if MP:
-            dim = len(self.covs[0][0])
-            cov = np.array([[float(mp.re(mp.fsum(self.weights
-                                                 * sigma_tilde[:,i,j]))) for i in range(dim)] for j in range(dim)])
-        else:  
-            cov = np.sum(self.weights[:,np.newaxis, np.newaxis] * sigma_tilde ,axis =0)
+        
+        cov = np.sum(self.weights[:,np.newaxis, np.newaxis] * sigma_tilde ,axis =0)
             
         
         sigma = np.real_if_close(cov - offset)

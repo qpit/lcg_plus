@@ -1,3 +1,18 @@
+# Copyright © 2025 Technical University of Denmark
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
 from lcg_plus.operations.gbs import build_interferometer, build_interferometer_gradients
 from lcg_plus.conversions import dB_to_r, r_to_dB, Delta_to_dB
@@ -93,7 +108,6 @@ def gkp_squeezing(*args):
     expval = Q_expval(state, lattice)
         
     return expval.real 
-
 
 
 def symm_effective_squeezing_gradients(*args):

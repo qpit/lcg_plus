@@ -1,10 +1,23 @@
+# Copyright © 2025 Technical University of Denmark
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from scipy.optimize import basinhopping, minimize
 from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
 import numpy as np
 from lcg_plus.conversions import dB_to_r, r_to_dB
 from lcg_plus.cost_functions import symm_effective_squeezing
-import pickle
-import os.path
 
 class GBS_optimizer:
 
@@ -201,75 +214,5 @@ class GBS_optimizer:
         
         self.result = res
         self.res_dict = params_to_dict(res.x, self.num_modes, self.bs_arrange, self.setting)
-
-
-class GBS_opt_light:
-    """A lighter version of GBS_optimizer. Intended to store many optimisation results with the same circuit settings.
-    """
-    def __init__(self, nmodes, bs_arrange, setting, pattern):
-        #Metadata
-        self.bs_arrange = bs_arrange
-        self.nmodes = nmodes
-        self.setting = setting
-        self.pattern = pattern
-        
-        self.params = []
-        self.costfs = []
-        self.num_opts = 0
-    
-    def add_opt(self, opt):
-        self.params.append(opt.result.x)
-        self.costfs.append(opt.result.fun)
-        self.num_opts += 1
-
-def run_opts(nmodes, num_opts, cutoff, niter, bs, costfs, patterns, inf, costf_lattice, setting, pPNR, nbars, etas):
-    
-    for i, bs_arrange in enumerate(bs):
-        for j, costf in enumerate(costfs): 
-            gradients = j == 1 #gradients for second costf
-            fast = j == 0 #fast rep for first costf
-            
-            np.random.seed(28) #Each costf uses the same initial guesses
-    
-            for k, pattern in enumerate(patterns): 
-                print(bs_arrange, costf, pattern)
-                fname = f'{bs_arrange}_{gradients}_{pattern}_opt.pickle'
-                if os.path.isfile(fname):
-                    print('file already exits.')
-                    
-                else:
-                    opt_light = GBS_opt_light(nmodes, bs_arrange, setting, pattern)
-        
-                    if np.sum(pattern) != 0:
-                        num = 0
-                        while num < num_opts: 
-                    
-                            opt = GBS_optimizer(nmodes,
-                                                list(pattern),
-                                                bs_arrange,
-                                                setting,
-                                                costf,
-                                                costf_lattice,
-                                                pPNR,
-                                                gradients,
-                                                inf,
-                                                etas,
-                                                nbars,
-                                                fast  
-                                               )
-                            opt.set_initial_guess()
-                           
-                            
-                            opt.run_global_optimisation(disp = False, niter = niter)
-                            print(f'global optimum {num}', opt.result.fun)
-                            opt_light.add_opt(opt)
-    
-                            num += 1
-                        with open(f'{bs_arrange}_{gradients}_{pattern}_opt.pickle', 'wb') as handle:
-                            pickle.dump(opt_light, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                
-                    
-    
-        
 
   

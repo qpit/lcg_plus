@@ -1,7 +1,19 @@
-#Functions for converting to and from dB units
+# Copyright © 2025 Technical University of Denmark
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 
 import numpy as np
-#import mpmath
 
 def r_to_dB(r):
     """Convert squeezing to dB units, r_dB = 10 * log10( exp(-2r) )
@@ -29,39 +41,3 @@ def dB_to_Delta(Delta_dB):
 
 def to_dB(x):
     return -10*np.log10(x)
-
-
-
-
-
-#def ratio_to_dB(amp):
- #   """ Convert amplitude ratio to dB
-  #  """
-   # return -20*np.log10(amp)
-
-#def dB_to_ratio(dB):
- #   """ Convert dB to amplitude ratio
-  #  """
-   # return 10**(-dB/20)
-
-#def Delta_to_epsilon(Delta):
- #   """ Convert Delta to epsilon squeezing
-  #  """
-   # return Delta **2
-
-#def epsilon_to_Delta(epsilon):
- #   """ Convert epsilon to Delta squeezing
-  #  """
-   # return np.sqrt(epsilon)
-
-#def epsilon_to_dB(epsilon):
- #   """ Convert epsilon to dB squeezing
-  #  """
-   # Delta = epsilon_to_Delta(epsilon)
-    #return ratio_to_dB(Delta)
-
-#def Delta_dB_to_epsilon(dB):
- #   """Convert dB to epsilon
-  #  """
-   # return dB_to_power(-dB)
-

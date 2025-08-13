@@ -880,7 +880,7 @@ class State:
         
 
 
-    def sample_dyne(self, modes, shots=1, covmat = [], method = 'normal', prec= False):
+    def sample_dyne(self, modes, shots=1, covmat = [], method = 'normal'):
         r"""Performs general-dyne measurements on a set of modes. 
         """
             
@@ -912,10 +912,10 @@ class State:
                 peak_sample = np.random.multivariate_normal(mean_sample, cov_sample, size =1)[0]
     
                 # Calculate the probability at the sampled point
-                prob_dist_val = generaldyne_probability(peak_sample, means_quad, covs_quad, self.log_weights, prec)
+                prob_dist_val = generaldyne_probability(peak_sample, means_quad, covs_quad, self.log_weights)
     
                 #Calculate the upper bounding function at the sampled point
-                prob_upbnd = generaldyne_probability(peak_sample, means_quad[ub_ind,:].real, covs_quad, ub_weights, prec)
+                prob_upbnd = generaldyne_probability(peak_sample, means_quad[ub_ind,:].real, covs_quad, ub_weights)
                 
                 # Sample point between 0 and upperbound function at the phase space sample
                 vertical_sample = np.random.random(size=1) * prob_upbnd
@@ -931,13 +931,13 @@ class State:
         return vals, np.array(reject_vals)
             
     
-    def sample_dyne_gaussian(self, modes, shots = 1, covmat = [], factor = 0, prec =False):
+    def sample_dyne_gaussian(self, modes, shots = 1, covmat = [], factor = 0):
         r"""Performs general-dyne measurements on a set of modes using a Gaussian 
         upper bounding function based on the first and second moments of the state. 
         
         """
         means_quad, covs_quad, quad_ind = select_quads(self, modes, covmat)
-        cov_ub, mean_ub, scale = get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind, prec)
+        cov_ub, mean_ub, scale = get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind)
             
         #Perform rejection sampling with the single guassian upper bounding function
         vals = np.zeros((shots, len(modes)))
@@ -958,7 +958,7 @@ class State:
                 
                 y = np.random.random(size=1)*prob_upbnd 
     
-                prob_dist_val = generaldyne_probability(sample, means_quad, covs_quad, self.log_weights, prec)
+                prob_dist_val = generaldyne_probability(sample, means_quad, covs_quad, self.log_weights)
              
                 if y > prob_dist_val:
                     reject_vals.append(sample)

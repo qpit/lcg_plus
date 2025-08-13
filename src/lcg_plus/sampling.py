@@ -14,11 +14,10 @@
 
 
 import numpy as np
-from mpmath import mp
 from copy import copy
 from scipy.special import logsumexp
 def get_upbnd_weights(means_quad, covs_quad, log_weights, method = 'normal'):
-    """Upper bound distribution according to method
+    """Upper bound distribution according to method, which can be normal, coherent, ignore_imag_prefactor, imaginary
     """
     # Indices of the Gaussians in the linear combination with imaginary means
     imag_means_ind = np.where(means_quad.imag.any(axis=1))[0]
@@ -70,7 +69,7 @@ def get_upbnd_weights(means_quad, covs_quad, log_weights, method = 'normal'):
     
     return ub_ind, ub_weights, ub_weights_prob
 
-def generaldyne_probability(sample, means_quad, covs_quad, log_weights, prec = False):
+def generaldyne_probability(sample, means_quad, covs_quad, log_weights):
     """Evaluate probability distribution at sample, given means, covs and weights. 
     """
  
@@ -88,17 +87,8 @@ def generaldyne_probability(sample, means_quad, covs_quad, log_weights, prec = F
     prefactors = 1 / np.sqrt(2 * np.pi * np.linalg.det(covs_quad))
     
     log = log_weights - 0.5 * exp_arg
-
-    if prec:
-        #Calculate sum of exponentials with high precision using mpmath
-        prob_dist_val = prefactors * float( mp.re(mp.fsum([mp.exp(i) for i in log]))) 
         
-    else:
-        
-        prob_dist_val = prefactors * np.exp(logsumexp(log))
-    
-    
-    #prob_dist_val = np.sum(weights * prefactors * np.exp(-0.5 * exp_arg))
+    prob_dist_val = prefactors * np.exp(logsumexp(log))
 
     prob_dist_val = np.real_if_close(prob_dist_val)
     
@@ -120,13 +110,13 @@ def select_quads(self, modes, covmat =[]):
         covs_quad += covmat #Add generaldyne covmat if needed
     return means_quad, covs_quad, quad_ind
 
-def get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind, prec =False):
+def get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind):
     """Get upper bound Gaussian distribution from first and second moments.
     """
 
     #Calculate first and second moments
-    mu = self.get_mean(MP)
-    sigma = self.get_cov(MP)
+    mu = self.get_mean().real
+    sigma = self.get_cov().real
 
     #Select the proper quad indices
     mu = np.array(mu[quad_ind])
@@ -134,7 +124,7 @@ def get_upbnd_gaussian(self, means_quad, covs_quad, quad_ind, prec =False):
 
     #Calculate tentatitive scaling factor (be careful: the distribution could have an envelope that is not a guassian,
     # or might be zero at the center (e.g. p-quadrature of a cat with parity 1)).
-    scale = generaldyne_probability(mu, means_quad, covs_quad, self.log_weights, prec).real
+    scale = generaldyne_probability(mu, means_quad, covs_quad, self.log_weights).real
     
     return sigma, mu, scale
 

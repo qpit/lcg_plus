@@ -13,7 +13,7 @@ I recommend using the [uv package manager](https://docs.astral.sh/uv/).
 
 ## Features
 - Simulation of phase-space Wigner functions in the Gaussian representation by tracking covariance matrices, displacement vectors, and weights.
-- Non-Gaussian states and measurement POVMs elements are represented as linear combinations of multivariate Gaussians.
+- Non-Gaussian states and measurement POVM elements are represented as linear combinations of multivariate Gaussians.
 
 Please see our preprint for more information.
 >Olga Solodovnikova, Ulrik L. Andersen, Jonas S. Neergaard-Nielsen "Fast simulations of continuous-variable circuits using the coherent state decomposition" [arXiv:2508.06175 \[quant-ph\]](http://arxiv.org/abs/2508.06175)
@@ -25,7 +25,7 @@ See Jupyter notebooks in `demos/`. To run the notebooks,
 
 `uv pip install .` from root.
 
-Reemember to add the kernel
+Remember to add the kernel
 
 `uv run python -m ipykernel install --user --name=lcg_plus --display-name "Python (lcg_plus)"`
 

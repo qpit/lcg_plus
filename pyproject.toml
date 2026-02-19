@@ -1,20 +1,38 @@
 [project]
 name = "lcg_plus"
-version = "2025.08.03"
+version = "2026.02.19"
 description = "Gaussian and non-Gaussian continuous-variable quantum optics simulations."
-authors = [{name = "Olga Solodovnikova", email = "olgasol@dtu.dk"}]
+
+authors = [{name = "Olga Solodovnikova",email = "olgasol@imada.sdu.dk"}]
+
+readme = "README.md"
+
+license = "Apache-2.0"
+
+requires-python = ">=3.10"
+
 dependencies = [
-	"numpy",
-	"scipy",
-	"thewalrus",
-	"matplotlib",
-    "pytest"
-	]
+        "thewalrus>=0.22.0",
+        "matplotlib",
+]
+
 [project.urls]
-homepage = "https://github.com/qpit/lcg_plus"
+repository = "https://github.com/qpit/lcg_plus.git"
+
+[project.optional-dependencies]
+dev = [
+	"pytest",
+	"pytest-cov",
+	"ruff",
+	"mypy",
+]
+
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=68","wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -18,7 +18,6 @@ import itertools as it
 
 from mpmath import mp
 from scipy.special import comb
-from math import fsum
 from lcg_plus.base import State
 from lcg_plus.states.coherent import gen_fock_log
 

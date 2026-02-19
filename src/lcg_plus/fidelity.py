@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-from mpmath import mp
 from scipy.special import logsumexp
 
 def overlap_bosonic(state1, state2):

@@ -24,10 +24,8 @@ from lcg_plus.states.reduce import reduce, reduce_log, reduce_log_full, reduce_l
 from lcg_plus.sampling import *
 
 from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
-import itertools as it
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
-from math import fsum
 
 
 hbar = 2

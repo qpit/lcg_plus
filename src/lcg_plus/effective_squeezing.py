@@ -14,10 +14,8 @@
 
 import numpy as np
 from lcg_plus.charfun import char_fun, char_fun_gradients
-from lcg_plus.conversions import dB_to_r, Delta_to_dB
 
-
-def get_gkp_stabilizer(lattice):
+def get_gkp_stabilizer_displacement(lattice):
 
     lattices = ['sx', 'sp', 'rx', 'rp', 'hx', 'hp', 'hsx', 'hsp']
         
@@ -56,7 +54,7 @@ def get_gkp_stabilizer(lattice):
     return alpha
     
 
-def effective_sqz(state, lattice : str):
+def effective_squeezing(state, lattice : str):
     """Get the effective squeezing of a state according to the Terhal definition.
 
     Args:
@@ -64,7 +62,7 @@ def effective_sqz(state, lattice : str):
         lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
     """
 
-    alpha = get_gkp_stabilizer(lattice)
+    alpha = get_gkp_stabilizer_displacement(lattice)
 
     
     #Symmetrically
@@ -80,30 +78,52 @@ def effective_sqz(state, lattice : str):
     return float(Delta)
 
 
-def effective_sqz_gradients(state, lattice : str):
+def effective_squeezing_gradients(state, lattice : str):
     """
     Args:
         state : State
         lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
     """
 
-    alpha = get_gkp_stabilizer(lattice)
+    alpha = get_gkp_stabilizer_displacement(lattice)
 
     f1, df1 = char_fun_gradients(state, alpha)
     f2, df2 = char_fun_gradients(state, -alpha)
 
-    D1 = -2/np.abs(alpha)**2*np.log(np.abs(f1)) #Square of Delta(+alpha)
-    D2 = -2/np.abs(alpha)**2*np.log(np.abs(f2)) #Square of Delta(-alpha)
+    Delta_plus_squared = -2/np.abs(alpha)**2*np.log(np.abs(f1)) #Delta(+alpha)^2
+    Delta_minus_squared = -2/np.abs(alpha)**2*np.log(np.abs(f2)) #Delta(-alpha)^2
 
 
-    dD1 =  - 2/np.abs(alpha)**2 * f1 / np.abs(f1)**2 * df1
-    dD2 = - 2/np.abs(alpha)**2 * f2 / np.abs(f2)**2 * df2
+    grad_Delta_plus_squared  = - 2/np.abs(alpha)**2 * f1 / np.abs(f1)**2 * df1 #gradient of Delta(+alpha)^2
+    grad_Delta_minus_squared = - 2/np.abs(alpha)**2 * f2 / np.abs(f2)**2 * df2 #gradient of Delta(-alpha)^2
     
-    
-    Delta =  0.5 * (np.sqrt(D1)+np.sqrt(D2))
-    dDelta =  0.25/np.sqrt(D1)*dD1+0.25/np.sqrt(D2)*dD2
+    Delta =  0.5 * ( np.sqrt(Delta_plus_squared) + np.sqrt(Delta_minus_squared) )
+    dDelta =  0.25 * (grad_Delta_plus_squared / np.sqrt(Delta_plus_squared) + grad_Delta_minus_squared / np.sqrt(Delta_minus_squared))
     
     return float(Delta), dDelta
+
+def effective_squeezing_squared_gradients(state, lattice : str):
+    """
+    Args:
+        state : State
+        lattice: The GKP lattice and direction, sx, sp, rx, rp, hx, hp, hsx, hsp
+    """
+
+    alpha = get_gkp_stabilizer_displacement(lattice)
+
+    f1, df1 = char_fun_gradients(state, alpha) #Xi(+alpha)
+    f2, df2 = char_fun_gradients(state, -alpha) #Xi(-alpha)
+
+    Delta_plus_squared = -2/np.abs(alpha)**2*np.log(np.abs(f1)) #Delta(+alpha)^2
+    Delta_minus_squared = -2/np.abs(alpha)**2*np.log(np.abs(f2)) #Delta(-alpha)^2
+
+    grad_Delta_plus_squared =  - 2/np.abs(alpha)**2 * f1 / np.abs(f1)**2 * df1 #gradient of Delta(+alpha)^2
+    grad_Delta_minus_squared = - 2/np.abs(alpha)**2 * f2 / np.abs(f2)**2 * df2 #gradient of Delta(-alpha)^2
+    
+    Delta_squared =  0.5 * (Delta_plus_squared + Delta_minus_squared)
+    grad_Delta_squared =  0.5 * (grad_Delta_plus_squared + grad_Delta_minus_squared)
+    
+    return float(Delta_squared), grad_Delta_squared
 
 
 

@@ -18,14 +18,16 @@ from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
 from lcg_plus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
 from lcg_plus.states.wigner import Gauss
-from lcg_plus.states.coherent import gen_fock_superpos_coherent, get_cnm, eps_superpos_coherent
-from lcg_plus.states.reduce import reduce, reduce_log, reduce_log_full, reduce_log_pure
+from lcg_plus.states.coherent import eps_superpos_coherent
+from lcg_plus.states.reduce import reduce_log, reduce_log_full, reduce_log_pure
 
 from lcg_plus.sampling import *
 
 from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
+
+import itertools as it
 
 
 hbar = 2
@@ -649,11 +651,11 @@ class State:
         if self.num_modes != 1:
             raise ValueError('This is a multimode state. Can only copy make copies of single mode states.')
 
-        if selv.num_k != self.num_weights:
+        if self.num_k != self.num_weights:
             raise ValueError('Doesnt handle fast rep correctly.')
             
         means, cov, log_weights = self.means, self.covs, self.log_weights
-        print('input data shape', means.shape, cov.shape, weights.shape)
+        print('input data shape', means.shape, cov.shape, log_weights.shape)
         
         if self.num_covs == 1:
             new_cov = np.array([block_diag(*np.repeat(cov,n,axis = 0))])

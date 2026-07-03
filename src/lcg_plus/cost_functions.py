@@ -13,11 +13,10 @@
 # limitations under the License.
 
 
-from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
+from lcg_plus.operations.circuit_parameters import params_to_dict
 from lcg_plus.operations.gbs import build_interferometer, build_interferometer_gradients
-from lcg_plus.conversions import dB_to_r, r_to_dB, Delta_to_dB
 import numpy as np
-from lcg_plus.effective_sqz import effective_sqz, effective_sqz_gradients
+from lcg_plus.effective_squeezing import effective_squeezing, effective_squeezing_gradients, effective_squeezing_squared_gradients
 from lcg_plus.gkp_squeezing import Q_expval, Q_expval_gradients
 
 def state_prep_GBS(params, 
@@ -93,7 +92,17 @@ def symm_effective_squeezing(*args):
     state = state_prep_GBS(*args[0:-2])
     lattice = args[-1]
     
-    eff = effective_sqz(state, lattice+'x') + effective_sqz(state, lattice+'p')
+    eff = effective_squeezing(state, lattice+'x') + effective_squeezing(state, lattice+'p')
+        
+    return eff.real/2
+
+def symm_effective_squeezing_squared(*args):
+    """
+    """
+    state = state_prep_GBS(*args[0:-2])
+    lattice = args[-1]
+    
+    eff = effective_squeezing(state, lattice+'x')**2 + effective_squeezing(state, lattice+'p')**2
         
     return eff.real/2
 
@@ -116,10 +125,24 @@ def symm_effective_squeezing_gradients(*args):
     
     state = state_prep_GBS(*args[0:-2])
     lattice = args[-1]
-    Dx, Dx_grad = effective_sqz_gradients(state, lattice+'x')
-    Dp, Dp_grad = effective_sqz_gradients(state, lattice+'p')
+    Dx, Dx_grad = effective_squeezing_gradients(state, lattice+'x')
+    Dp, Dp_grad = effective_squeezing_gradients(state, lattice+'p')
 
-    eff = Dx + Dp  #Should be np.sqrt(0.5*(Dx**2 + Dp**2))
+    eff = Dx + Dp 
+    df = Dx_grad + Dp_grad
+        
+    return 0.5*eff.real, 0.5*df.real
+
+def symm_effective_squeezing_squared_gradients(*args):
+    """
+    """
+    
+    state = state_prep_GBS(*args[0:-2])
+    lattice = args[-1]
+    Dx, Dx_grad = effective_squeezing_squared_gradients(state, lattice+'x')
+    Dp, Dp_grad = effective_squeezing_squared_gradients(state, lattice+'p')
+
+    eff = Dx + Dp 
     df = Dx_grad + Dp_grad
         
     return 0.5*eff.real, 0.5*df.real

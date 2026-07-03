@@ -24,7 +24,7 @@ def mu_to_alphas(mu):
     Returns:
         alpha : 
         beta : 
-        d : coefficient 
+        exparg : log coefficient 
     """
     alpha = 0.5*(mu[:,0].real-mu[:,1].imag)+1j*0.5*(mu[:,0].imag+mu[:,1].real)
     beta = 0.5*(mu[:,0].real+mu[:,1].imag)+1j*0.5*(mu[:,1].real-mu[:,0].imag)
@@ -302,7 +302,7 @@ def reduce_log_pure(nmax:int, eps:float, data:tuple):
         sumtot = w + akl
     
     else:
-        fast =True
+        fast = True
         w1 = log_weights[0:num_k][np.newaxis,:]
         w2 = log_weights[num_k:][np.newaxis,:] - np.log(2) #Because we use 2 Re ( weights[num_k:] ) 
         a1 = alpha[0:num_k][np.newaxis,:]

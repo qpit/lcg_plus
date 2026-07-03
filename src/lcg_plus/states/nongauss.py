@@ -24,9 +24,9 @@ from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 def prepare_fock_coherent(n, inf=1e-4, epsilon = None, fast = True):
     """Prepare Fock state in coherent state approx"""
     if fast: 
-        data = gen_fock_coherent(n, inf, epsilon, norm =True)
+        data = gen_fock_coherent(n, inf, epsilon)
     else:
-        data = gen_fock_coherent_old(n, inf, epsilon)
+        data = gen_fock_coherent(n, inf, epsilon, fast=False)
         
     fock = State(1)
     fock.update_data(data)

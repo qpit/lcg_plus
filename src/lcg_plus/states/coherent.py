@@ -156,9 +156,8 @@ def gen_fock_superpos_coherent(coeffs, infid, eps = None, norm = True, fast =Tru
     alphas = eps * np.exp(1j * theta * ns)
     betas = eps * np.exp(1j * theta * ms)
     
-    means, cov, d = outer_coherent(alphas,betas)
+    means, cov, log_weights = outer_coherent(alphas,betas)
 
-    log_weights = d
     num_k = len(log_weights)
     
     if fast:

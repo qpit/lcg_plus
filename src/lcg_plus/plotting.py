@@ -156,6 +156,7 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     
     W = W.real
     scale = np.max(W)
+    scale = 1/(2 * np.pi)
     nrm = mpl.colors.Normalize(-scale, scale)
     extent = np.array([np.min(x), np.max(x), np.min(p), np.max(p)])
 
@@ -229,7 +230,9 @@ def plot_wigner_marginals(W, x, p, **kwargs):
     #ax_p.invert_yaxis()
     
 
-    plt.colorbar(im, cax = cax )
+    cbar = plt.colorbar(im, cax = cax, ticks = [-scale,0,scale] )
+    cbar.ax.set_yticklabels([r'$-(\pi\hbar)^{-1}$',r'$0$', r'$(\pi\hbar)^{-1}$'])
+    
     
     return fig, ax, ax_x, ax_p, cax
 
@@ -379,7 +382,7 @@ def plot_marginal(ax, W, x, p, title, which = 'x', GKP = 'rect', ls='solid', lw=
     return 
 
 
-def plot_individual_gauss(W):
+def plot_individual_gauss(W, x, p):
     fig, axes  = plt.subplots(1,2,figsize=(3,3),sharex=True,sharey=True)
     scale1 = np.max(W.real)
     scale2 = np.max(W.imag)
@@ -388,8 +391,8 @@ def plot_individual_gauss(W):
     nrm1 = mpl.colors.Normalize(-scale1, scale1)
     nrm2 = mpl.colors.Normalize(-scale2, scale2)
     
-    axes[0].contourf(x,x, W.real, 100, cmap=cm.RdBu, norm = nrm1)
-    axes[1].contourf(x,x, W.imag, 100, cmap=cm.RdBu, norm = nrm2)
+    axes[0].contourf(x,p, W.real, 100, cmap=cm.RdBu, norm = nrm1)
+    axes[1].contourf(x,p, W.imag, 100, cmap=cm.RdBu, norm = nrm2)
     axes[0].set_aspect("equal")
     axes[1].set_aspect("equal")
     fig.set_tight_layout(True)

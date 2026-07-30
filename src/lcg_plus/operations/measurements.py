@@ -14,14 +14,13 @@
 
 import numpy as np
 from scipy.special import comb
-from lcg_plus.states.coherent import gen_fock_coherent, gen_fock_bosonic, gen_fock_coherent_old, gen_fock_log
+from lcg_plus.states.coherent import gen_fock_coherent, gen_fock_log
 from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi, chop_in_blocks_multi_v2, chop_in_blocks_vector_multi_v2
-from scipy.special import logsumexp
 
 
 # PNRD MEASUREMENT
 # ------------------------------------
-def project_fock_coherent(n, data, mode, inf=1e-4, k2=None, hbar =2 ):  
+def project_fock_coherent(n, data, mode, inf=1e-4, k2=None, hbar = 2 ):  
     """Returns data tuple after projecting mode on fock state n (in coherent approx)
     
     Args:
@@ -29,8 +28,8 @@ def project_fock_coherent(n, data, mode, inf=1e-4, k2=None, hbar =2 ):
         data (tuple) : [means, covs, weights]
         mode (int): mode index that is measured with PNRD
         inf (float): infidelity of the fock approx
-        k1 (int): number of "normal" gaussians in fock POVM
-        k2 (int): number of "normal" gaussians in state
+        k1 (int): number of "normal" gaussians in approx of fock POVM
+        k2 (int): number of "normal" gaussians in the state
         
     Returns:
         data_A (tuple): 
@@ -217,7 +216,7 @@ def project_ppnrd_thermal(data, mode, n, M, hbar = 2):
     
     return data_A 
 
-def project_fock_thermal(data, mode, n ,r = 0.05, hbar = 2):
+def project_fock_thermal(data, n, mode, r = 0.05, hbar = 2):
     means, covs, log_weights = data
     
     modes = [mode]

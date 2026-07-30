@@ -14,18 +14,90 @@
 
 
 import numpy as np
-from scipy.sparse import (
-    identity as sparse_identity,
-    issparse,
-    coo_array,
-    dia_array,
-    bsr_array,
-    csr_array,
-    lil_matrix,
-)
+from scipy.sparse import issparse
 from functools import reduce
+from thewalrus.symplectic import xxpp_to_xpxp
+from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 
 hbar = 2
+
+def symplectic_form(num_modes):
+    Omega = np.array([[0,1],[-1,0]]) #Single mode 
+    return np.kron(np.eye(num_modes),Omega)
+
+def is_symplectic(mat, rtol=1e-05, atol=1e-08):
+    """Check if mat is symplectic"""
+    m, n = mat.shape
+
+    if n != m:
+        return False
+    if n % 2 != 0:
+        return False
+    
+    num_modes = n // 2
+    Omega = symplectic_form(num_modes)
+    return np.allclose(Omega, mat @ Omega @ mat, rtol=rtol, atol=atol)
+
+def apply_symplectic_on_subsystem(means, covs, num_modes, num_weights, symp_mat, modes_subsystem):
+    """Apply a symplectic transform (in xpxp ordering) on subsystem elements of the covariance matrices and displacement vectors,
+    then reassemble the covariance matrices and disp vectors from the updated elements. 
+    This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
+    """
+
+    if len(modes_subsystem) != symp_mat.shape[0]/2:
+        raise ValueError('Symplectic matrix must have same dimension as the modes list')
+    if num_modes == 2 and len(modes_subsystem) == 2:
+        raise ValueError('Use apply_symplectic.')
+    
+    mode_ind_subsystem = np.concatenate((2 * np.array(modes_subsystem), 2 * np.array(modes_subsystem) + 1)) #in xxpp 
+    mode_ind_subsystem = xxpp_to_xpxp(mode_ind_subsystem) #back to xpxp
+    
+    mode_ind_total = np.arange(2*num_modes)
+    
+    mode_ind_rest = list(set(mode_ind_total) - set(mode_ind_subsystem))
+    
+    A, AB, B = chop_in_blocks_multi(covs, mode_ind_subsystem) #Chop the system into A modes: untouched, and B modes: the modes the symplectic is applied to
+    a, b = chop_in_blocks_vector_multi(means, mode_ind_subsystem)
+    
+    Bnew = np.einsum("...jk,...kl,...lm",symp_mat,B,symp_mat.T)
+    ABnew = np.einsum("...jk,...kl",AB,symp_mat.T)
+    bnew = np.einsum("...jk,...k",symp_mat,b)
+    
+    nw = num_weights #Number of weights
+    if covs.shape[0] != 1:
+        covs[np.ix_(np.arange(nw),mode_ind_subsystem,mode_ind_subsystem)] = Bnew 
+        covs[np.ix_(np.arange(nw),mode_ind_rest, mode_ind_subsystem)] = ABnew
+        covs[np.ix_(np.arange(nw),mode_ind_subsystem, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
+    else:
+        covs[np.ix_([0],mode_ind_subsystem,mode_ind_subsystem)] = Bnew 
+        covs[np.ix_([0],mode_ind_rest, mode_ind_subsystem)] = ABnew
+        covs[np.ix_([0],mode_ind_subsystem, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
+    
+    means[np.ix_(np.arange(nw),mode_ind_subsystem)] = bnew
+    return means, covs
+
+def apply_symplectic_full(means, covs, symp_mat : np.ndarray):
+    """ Apply symplectic transform (in xpxp ordering) on the covariance matrices and displacement vectors,
+        V -> S V S.T
+        r -> S r
+    Note that symplectics from thewalrus are in xxpp ordering and we use xpxp ordering.
+        symp_mat (array) : symplectic matrix
+    """
+    
+    #First check that symp_mat has the correct dimensions
+    if np.shape(symp_mat)[0] != int(np.shape(means)[-1]):
+        raise ValueError('symp_mat must must be 2nmodes x 2nmodes.')
+    
+    if covs.shape[0] == 1: 
+        new_covs = symp_mat @ covs @ symp_mat.T
+    else:
+        #Didn't test if this works
+        new_covs = np.einsum("...jk,...kl,...lm", symp_mat, covs, symp_mat.T)
+
+    new_means = np.einsum("...jk,...k", symp_mat, means)
+
+    return new_means, new_covs
+
 
 def beam_splitter(theta, phi):
     cp = np.cos(phi)
@@ -44,7 +116,6 @@ def rotation_gradient(phi):
     c = np.cos(phi)
     s = np.sin(phi)
     return np.array([[-s, -c],[c,-s]])
-
 
 def beam_splitter_gradients(theta, phi):
     """Get partial deriviatives of the symplectic matrix wtr theta and phi
@@ -108,7 +179,6 @@ def disp_gradients(r, phi):
     s = np.sin(phi)
     return np.sqrt(hbar*2) * np.array([c,s]), np.sqrt(hbar*2)*r*np.array([-s,c])
     
-
 def expand_symplectic_matrix(S, target_modes, total_modes):
     """
     Written by ChatGPT.

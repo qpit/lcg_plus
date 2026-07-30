@@ -16,18 +16,30 @@
 import numpy as np
 from scipy.special import factorial, genlaguerre
 
+
+def wig_mn(m : int, n : int, x, p, hbar=2) -> np.ndarray:
+    """Wigner function of |m><n| 
+    """
+    if n > m:
+        m, n = n, m
+        p = -p
+    
+    x /= np.sqrt(hbar)
+    p /= np.sqrt(hbar)
+    
+    return (-1)**n * (x-p*1j)**(m-n) * 1/(hbar * np.pi) * np.exp(-x*x - p*p) * \
+            np.sqrt(2**(m-n) * factorial(n) / factorial(m)) * \
+            genlaguerre(n, m-n)(2*x*x + 2*p*p)
+
 ## To do: speed up, e.g. rho is self-adjoint.
 
 def Dmn(alpha : complex, m : int, n : int) -> complex:
     """Calculates mn'th element of complex displacement operator with alpha using the Cahill1969 formula
     """
-    
-    
     if n > m:
         m, n = n, m
         alpha = -alpha.conjugate()
 
-        
     prefactor = np.sqrt(factorial(n)/factorial(m)) * alpha**(m-n) * np.exp(-np.abs(alpha)**2 / 2)
     dmn = prefactor * genlaguerre(n, m-n)(np.abs(alpha)**2)
 

@@ -14,12 +14,16 @@
 
 
 import numpy as np
-from thewalrus.symplectic import xpxp_to_xxpp, xxpp_to_xpxp, expand, rotation
+from thewalrus.symplectic import xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
 from lcg_plus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
-from lcg_plus.states.wigner import Gauss
+from lcg_plus.operations.symplectic import apply_symplectic_on_subsystem, apply_symplectic_full, is_symplectic
+from lcg_plus.operations.channels import apply_gaussian_channel_full
+from lcg_plus.properties.normalisation import calculate_norm
+from lcg_plus.states.wigner import compute_wigner_function, compute_wigner_function_log
 from lcg_plus.states.coherent import eps_superpos_coherent
-from lcg_plus.states.reduce import reduce_log, reduce_log_full, reduce_log_pure
+from lcg_plus.operations.reduce import reduce_log, reduce_log_full, reduce_log_pure, find_unique_means_and_merge_weights
+
 
 from lcg_plus.sampling import *
 
@@ -33,490 +37,168 @@ import itertools as it
 hbar = 2
 
 class State:
-    """Store the wigner function of a state as a linear combination of Gaussians
-    by tracking the means, covs, and weights of the Gaussians
-
-    
+    """Simulate a bosonic state by representing its Wigner function as a linear combination of multivariate Gaussians https://arxiv.org/abs/2103.05530
+    by keeping track of the (xpxp-ordered) means, (xpxp-ordered) covariance matrices, and coefficients of each Gaussian.
     """
     def __init__(self, num_modes = 1, hbar = 2):
-        """Initialise in vacuum by default
+        """Initialise single-mode vacuum by default.
         """
         self.hbar = hbar
         self.num_modes = num_modes
         self.means = np.array([np.zeros(self.num_modes * 2)])
         self.covs = np.array([np.eye(self.num_modes * 2)]) * self.hbar / 2
-        self.log_weights = np.array([0]) #log_weights
+        self.log_weights = np.array([0]) #log(weights)
         self.weights = np.array([1]) # weights
         self.num_weights = len(self.weights)
         self.num_covs = len(self.covs) #Relevant for faster calculations
-        self.num_k = self.num_weights #Number of Gaussian to be treated "normally" - upper triangular form.
-        self.ordering = 'xpxp' #xpxp by default.
-        self.norm = 1 #Normalisation (relevant when doing measurements)
+        self.num_k = self.num_weights #The first num_k Gaussians are treated "normally" i.e. those in left sum in Eq. (22) of https://arxiv.org/abs/2508.06175
+        self.norm = 1 #Normalisation constant
+        self.log_norm = 0
 
-    def update_data(self, new_data : tuple, ordering = 'xpxp'):
+
+    def update_data(self, new_data : tuple):
         """Insert a custom data tuple, new_data = [means, covs, log_weights, k]. 
         This overrides the existing state data completely.
-        
-        To do: what if new_data is in a different ordering?
         """
-        
         if len(new_data) != 4:
-            raise ValueError('new_data must be [means, covs, log_weights, k] tuple.')
+            raise ValueError('new_data must be [means, covs, log_weights, num_k] tuple.')
             
         self.means, self.covs, self.log_weights, self.num_k = new_data
 
         self.num_weights = len(self.log_weights)
         
-        self.ordering = ordering
-        
         self.num_modes = int(np.shape(self.means)[-1]/2)
         
         if len(self.covs.shape) != 3: 
-            self.covs = np.array([self.covs]) #Quick fix for places where covs is shape (2,2), not (1,2,2)
+            self.covs = np.array([self.covs]) #Quick fix for places where covs has shape (2N,2N), not (1,2N,2N)
             
         self.num_covs = len(self.covs)
         self.weights = np.exp(self.log_weights)
 
     def update_gradients(self, new_gradients : tuple):
-        """Insert a custom gradient tuple. Overrides any existing gradient data.
+        """Insert a custom gradient tuple, new_gradients = [means_partial, covs_partial, log_weights_partial]
+        Overrides any existing gradient data.
         """
+        if len(new_gradients) != 3:
+            raise ValueError('new_gradients must be [means_partial, covs_partial, log_weights_partial] tuple.')
         
         self.means_partial, self.covs_partial, self.log_weights_partial = new_gradients
         
-
-    def get_norm(self):
-        r"""Calculate the norm by adding the weights together
-        """
-         
-        log_norm = logsumexp(self.log_weights)
-
-        if self.num_k != self.num_weights:
-            self.log_norm = log_norm
-            self.norm = np.exp(log_norm).real
-
-        else:   
-            self.log_norm = log_norm
-            self.norm = np.real_if_close(np.exp(log_norm))
-
     def normalise(self):
-        r"""Subtract norm from log_weights
+        """Subtract log_norm from log_weights
         """
+        norm, log_norm = calculate_norm(self)
+
         if self.num_k != self.num_weights:
-            self.log_weights -= np.log(self.norm) 
+            self.log_weights -= np.log(norm) 
         else:
-            self.log_weights -= self.log_norm 
+            self.log_weights -= log_norm 
             
-        self.weights /= self.norm
+        self.weights /= norm
 
-        self.get_norm() #Populate norm
-              
-    def get_photon_number_moments(self):
-        """Dodonov and Man'ko https://doi.org/10.1103/PhysRevA.50.813
+    def apply_gaussian_unitary(self, symp_mat: np.ndarray, modes = None): 
+        """Apply a Gaussian unitary with symplectic matrix (in xpxp ordering) to the covs and means.
         """
-
-        #Get rid of the hbar 
-        covs = self.covs / self.hbar
-        means = self.means /np.sqrt(self.hbar)
-        
-        cov_tr = np.trace(covs, axis1=1,axis2=2)
-        cov_det = np.linalg.det(covs)
-        
-
-        mu_sq = np.einsum("...j,...j", means, means)
-
-        exk = 1/2 *(cov_tr + mu_sq - 1)
-
-        ex = np.exp(logsumexp(self.log_weights + np.log(exk))) / self.norm
-
-        covsq_tr = np.trace(np.einsum("...jk,...kl", covs, covs), axis1 = 1, axis2=2)
-        #covsq_tr = np.trace( covs@covs, axis1 = 1, axis2 = 2)
-        mucov = np.einsum("...j,...jk,...k", means, covs, means)
-
-        vark = 1/2 * (cov_tr**2 - 2 * cov_det - 0.5) + mucov
-        
-
-        #vark = 1/2 * (covsq_tr + 2*mucov - 0.5)
-        #vark = 1/2 * (covsq_tr + mucov - 0.5)
-    
-        var = np.exp(logsumexp(self.log_weights + np.log(vark))) /self.norm 
-        #var = np.sum(self.weights * vark)/self.norm
-
-        #num = self.num_modes
-            
-        #ex = np.sum(self.weights*((cov_tr + mu_sq)/(2*self.hbar)-1/2*num))/self.norm
-        
-        #var = np.sum(self.weights*((cov_tr**2-2*np.linalg.det(self.covs)+2*mucov)/(2 * self.hbar**2) - 1 / 4*num)/self.norm)
-       
-        
-        return ex, var
-
-    def get_mean(self):
-        """Get first moment
-        """
-       
-       
-        mu = np.real_if_close(np.sum(self.weights[:,np.newaxis] * self.means, axis = 0)) 
-        
-        if self.num_k != self.num_weights:
-            mu = mu.real
-        
-        self.mean = mu #Set the first moment
-        return mu
-                
-
-    def get_cov(self):
-        """Get second moment. 
-        """
-        offset = np.tensordot(self.mean, self.mean, axes =0)
-        
-        sigma_tilde = self.covs + np.einsum("...j,...k", self.means, self.means)
-        
-        
-        cov = np.sum(self.weights[:,np.newaxis, np.newaxis] * sigma_tilde ,axis =0)
-            
-        
-        sigma = np.real_if_close(cov - offset)
-     
-            
-        self.sigma = sigma #Set the 2nd moment
-        return sigma
-
-    def to_xpxp(self):
-        """Change the ordering from xpxp to xxpp
-        """
-        if self.ordering == 'xpxp':
-            raise ValueError('Already in xpxp ordering.')
+        if not is_symplectic(symp_mat):
+            raise Warning("symp_mat is not symplectic. Check its ordering.")
+        if modes: 
+            self.means, self.covs = apply_symplectic_on_subsystem(self.means, self.covs, self.num_modes, self.num_weights, symp_mat, modes)
         else:
-            means, covs, weights = self.data
-            means = np.array([xxpp_to_xpxp(i) for i in means])
-            covs = np.array([xxpp_to_xpxp(i) for i in covs]) #quick workaround
-            self.update_data([means, covs, weights], 'xpxp')  
-
-    def to_xxpp(self):
-        """Change the ordering from xpxp to xxpp
-        """
-        if self.ordering == 'xxpp':
-            raise ValueError('Already in xxpp ordering.')
-        else:
-            means, covs, weights = self.data
-            means = np.array([xpxp_to_xxpp(i) for i in means])
-            covs = np.array([xpxp_to_xxpp(i) for i in covs]) #quick workaround
-            self.update_data([means, covs, weights], 'xxpp')
-
-    def apply_symplectic_fast(self, S, modes, ordering = 'xpxp'):
-        """Partition total system into A and B modes. Act with symplectic on just the B modes, and
-        reassemble the covariance matrix and disp vector from the updated elements. 
-        This method has better performance than apply_symplectic() when the number of modes is large (> 20). 
-        """
-
-        if len(modes) != S.shape[0]/2:
-            raise ValueError('Symplectic must have same dimension as the modes list')
-        if self.num_modes == 2 and len(modes)==2:
-            raise ValueError('Use apply_symplectic.')
-        if ordering != self.ordering:
-            raise ValueError('Symplectic not in same ordering as state.')
-        
-        mode_ind = np.concatenate((2 * np.array(modes), 2 * np.array(modes) + 1)) #in xxpp 
-        mode_ind = xxpp_to_xpxp(mode_ind) #back to xpxp
-        
-        mode_inds = np.arange(2*self.num_modes)
-        
-        mode_ind_rest = list(set(mode_inds) - set(mode_ind))
-        
-        A, AB, B = chop_in_blocks_multi(self.covs, mode_ind) #Chop the system into A modes: untouched, and B modes: the modes the symplectic is applied to
-        a, b = chop_in_blocks_vector_multi(self.means, mode_ind)
-        
-        Bnew = np.einsum("...jk,...kl,...lm",S,B,S.T)
-        ABnew = np.einsum("...jk,...kl",AB,S.T)
-        bnew = np.einsum("...jk,...k",S,b)
-        
-        nw = self.num_weights #Number of weights
-        if self.covs.shape[0] != 1:
-            self.covs[np.ix_(np.arange(nw),mode_ind,mode_ind)] = Bnew 
-            self.covs[np.ix_(np.arange(nw),mode_ind_rest, mode_ind)] = ABnew
-            self.covs[np.ix_(np.arange(nw),mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
-        else:
-            self.covs[np.ix_([0],mode_ind,mode_ind)] = Bnew 
-            self.covs[np.ix_([0],mode_ind_rest, mode_ind)] = ABnew
-            self.covs[np.ix_([0],mode_ind, mode_ind_rest)] = np.transpose(ABnew, axes = [0,2,1])
-        
-        self.means[np.ix_(np.arange(nw),mode_ind)] = bnew
-
-    
-    def apply_symplectic(self, S : np.ndarray, ordering = 'xpxp'):
-        """ Apply symplectic to data
-            S (array) : symplectic matrix
-            ordering (str): ordering of S
-
-            To do: check covs update when num_covs != 1
-
-            Note that symplectics from thewalrus are in xxpp ordering
-        """
-        means = self.means
-        covs = self.covs
-        
-        #First check that S has the correct dimensions
-        if np.shape(S)[0] != int(np.shape(means)[-1]):
-            raise ValueError('S must must be 2nmodes x 2nmodes. ')
-        #Bug
-        #if ordering != self.ordering:
-            #raise ValueError('Symplectic not in same ordering as state.')
-            
-        if self.num_covs == 1: 
-            new_covs = S @ covs @ S.T
-        else:
-            #Didn't test if this works
-            new_covs = np.einsum("...jk,...kl,...lm", S[np.newaxis,:], covs, (S.T)[np.newaxis, :])
-
-        new_means = np.einsum("...jk,...k", S[np.newaxis,:], means)
-    
-        #Update data
-        self.means = new_means
-        self.covs = new_covs
-        #self.update_data([new_means, new_covs, weights])
+            self.means, self.covs = apply_symplectic_full(self.means, self.covs, symp_mat) 
         
         
-    def apply_displacement(self, d: np.ndarray, ordering = 'xpxp'):
-        r""" d must be in the same ordering (xxpp) or (xpxp)
-        To do: add test of d shape compatibility
+    def apply_displacement(self, d: np.ndarray):
+        """Shift the means by d (in xpxp ordering)
         """
         
-        if len(d) != self.means.shape[-1]:
+        if d.shape != self.means.shape[0,:]:
             raise ValueError('d must be 2 x nmodes.')
-        if ordering != self.ordering:
-            raise ValueError('Ordering of d must be the same as ordering of means.')
-        #Update data
         self.means += d
-        
-    
 
-    def apply_loss(self, etas, nbars):
-        """Apply loss to (multimode) state 
-
-        To do: add etas and nbars shape check, add case where num covs !=1
-    
-        Gaussian state undergo a attenuation channel in the following way:
-            cov = X @ cov @ X.T + Y
-            means = X @ means
-
-            where X = sqrt(eta)*I, Y = (1-eta) * hbar / 2 * (2*nbar+1) * I
-    
-        Args:
-            etas (array): array giving transmittivity of each mode
-            nbars (array): array giving number of photons in environment each mode is coupled to
-    
-        Returns:
-           updates means, covs
+    def apply_gaussian_channel(self, X, Y):
+        """Apply an (X,Y) Gaussian channel to the covs and means
         """
-        num_modes = self.num_modes
-        means = self.means
-        cov = self.covs
-
-        if self.ordering == 'xpxp':
-            X = np.diag(np.repeat(np.sqrt(etas),2))
-            Y = np.diag(np.repeat( (1-etas) * self.hbar / 2 * (2*nbars + 1) ,2 ))
-        elif self.ordering == 'xxpp':
-            X = xpxp_to_xxpp(np.diag(np.repeat(np.sqrt(etas),2)))
-            Y = xpxp_to_xxpp(np.diag(np.repeat( (1-etas) * self.hbar / 2 * (2*nbars + 1) ,2 )))
-
-        means = np.einsum("...jk,...k", X, means)
-        cov = X @ cov @ X.T
-        cov += Y
-        
-        #Update data
-        self.means = means
-        self.covs = cov
-
+        self.means, self.covs = apply_gaussian_channel_full(self.means, self.covs, X, Y)
         #Update the gradients if any
         if hasattr(self, "means_partial"):
-            self.means_partial =np.einsum("...jk,...k", X, self.means_partial)
-            self.covs_partial =np.einsum("...jk,...kl,...lm", X, self.covs_partial, X.T)
+            self.means_partial, self.covs_partial = apply_gaussian_channel_full(self.means_partial,self.covs_partial, X , Y)
 
-    def apply_gain(self, Gs):
-        """Apply gain to (multimode) state
 
-        To do: add etas and nbars shape check, add case where num covs !=1
-    
-        Gaussian state undergo an amplification channel in the following way:
-            cov = X @ cov @ X.T + Y
-            means = X @ means
-
-            X = sqrt(G)*I, Y = (G-1) * hbar / 2 * I
-    
-        Args:
-            Gs (array): array giving the gain in each mode
-
-        Returns:
-            updates means, covs
-           
+    def post_select_fock(self, mode : int, photon_number : int, method_kwargs = {'method' : 'coherent', 'infidelity' : 1e-4, 'gradients' : False}):
+        """Post select on a photon number in the given mode. The new state has one fewer mode, so be careful with indexing.
         """
-        num_modes = self.num_modes
-        means = self.means
-        cov = self.covs
-
-        if self.ordering == 'xpxp':
-            X = np.diag(np.repeat(np.sqrt(Gs),2))
-            Y = np.diag(np.repeat( (Gs-1) * self.hbar / 2 ,2 ))
-        elif self.ordering == 'xxpp':
-            X = xxpp_to_xpxp(np.diag(np.repeat(np.sqrt(Gs),2)))
-            Y = xxpp_to_xpxp(np.diag(np.repeat( (Gs-1) * self.hbar / 2 ,2 )))
-        
-        means = np.einsum("...jk,...k", X, means)
-        cov = X @ cov @ X.T
-        cov += Y
-        
-        #Update data
-        self.means = means
-        self.covs = cov
-
-        #Update the gradients if any
-        if hasattr(self, "means_partial"):
-            self.means_partial =np.einsum("...jk,...k", X, self.means_partial)
-            self.covs_partial =np.einsum("...jk,...kl,...lm", X, self.covs_partial, X.T)
-
-    def post_select_fock_coherent(self, mode, n, inf = 1e-4, red_gauss = True, out = False):
-        """Post select on counting n photons in mode. New state has one less mode, so be careful with indexing.
-    
-        Args: 
-            mode (int) : measured mode index 
-            n (int) : photon number
-    
-        Returns: updates data
-        """
-        #Make sure that ordering is xpxp first
-        if self.ordering != 'xpxp':
-            self.to_xpxp()
-
         data_in = self.means, self.covs, self.log_weights
-        
-        if red_gauss:
-            data_out = project_fock_coherent(n, data_in, mode, inf, self.num_k)
-            
-        else: 
-            data_out = project_fock_coherent(n, data_in, mode, inf)
-        
+
+        if method_kwargs['gradients']:
+            data_partial = self.means_partial, self.covs_partial, self.log_weights_partial
+
+
+        if method_kwargs['method'] == 'coherent':
+            infid = method_kwargs['infidelity']
+            if method_kwargs['gradients'] == False:
+                data_out = project_fock_coherent(photon_number, data_in, mode, infid, self.num_k)
+            else: 
+                raise ValueError('Gradients not compatible with reduced coherent representation. Use the coherent_full method.')
+
+        elif method_kwargs['method'] == 'coherent_full':
+            infid = method_kwargs['infidelity']
+            if method_kwargs['gradients'] == False:
+                data_out = project_fock_coherent(photon_number, data_in, mode, infid)
+            else: 
+                data_out, data_gradients = project_fock_coherent_gradients(photon_number, data_in, data_partial, mode, infid)
+
+        elif method_kwargs['method'] == 'thermal':
+            if method_kwargs['gradients'] == False:
+                data_out = project_fock_thermal(data_in, photon_number, mode, method_kwargs['squeezing'])
+            else: 
+                raise ValueError("Gradients not compatible with thermal fock representation. Use the coherent_full method.")
+
         self.update_data(data_out)
-        self.get_norm()
-    
-        if out:
-            print(f'Measuring {n} photons in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
-            print('Probability of measurement = {:.3e}'.format(self.norm))
-            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
 
+        if method_kwargs['gradients']:
+            self.update_gradients(data_gradients)
 
-    def post_select_fock_coherent_gradients(self, mode, n, inf = 1e-4, out = False):
-        """Post select on counting n photons in given mode. New state has one less mode, so be careful with indexing.
-    
-        Args: 
-            mode (int) : measured mode index 
-            n (int) : photon number
-    
-        Returns: updates data
+        self.norm, self.log_norm = calculate_norm(self)
+
+    def post_select_ppnrd(self, mode : int, click_number : int, total_detectors : int):
         """
-        #Make sure that ordering is xpxp first
-        if self.ordering != 'xpxp':
-            self.to_xpxp()
-
-        data_in = self.means, self.covs, self.log_weights, self.num_k
-        data_partial = self.means_partial, self.covs_partial, self.log_weights_partial
-
-        
-        data_out, data_gradients = project_fock_coherent_gradients(n, data_in, data_partial, mode, inf)
-        
-        self.update_data(data_out)
-        self.update_gradients(data_gradients)
-        
-        self.get_norm()
-    
-        if out:
-            print(f'Measuring {n} photons in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
-            print('Probability of measurement = {:.3e}'.format(self.norm))
-            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
-
-    def post_select_fock_thermal(self, mode, n, r =0.05, out = False):
-        #Make sure that ordering is xpxp first
-        if self.ordering != 'xpxp':
-            self.to_xpxp()
-
-        data_in = self.means, self.covs, self.log_weights
-            
-    
-        data_out = project_fock_thermal(data_in, mode, n, r)
-        self.update_data(data_out)
-    
-        if out:
-            print(f'Measuring {n} photons in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
-            print('Probability of measurement = {:.3e}'.format(self.norm))
-            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
-
-
-    def post_select_ppnrd_thermal(self, mode, n, M, out =False):
-        """
-        Detect mode wth pPNRD registering n clicks by demultiplexing into M on/off detectors.
+        Detect mode wth pseudo photon-number resolving detection registering n clicks by demultiplexing into M on/off detectors.
         The pPNRD POVM is written as a linear combination of Gaussians (thermal states) and the
-        circuit's Gaussian means, covs and weights are updated according to the Gaussian transformation rules of 
-        Bourassa et al. 10.1103/PRXQuantum.2.040315 . 
-    
-        Extension/generalisation of code from strawberryfield's bosonicbackend. 
-        
-        To do: 
-            Write down formula in documentation.
-        
-        Args: 
-            mode (int): mode to be detected
-            n (int): number of clicks detected
-            M (int): number of on/off detectors in the click-detector    
-            out (bool): print output text
-            
-        Returns: updates circuit object
-        
+        state's Gaussian means, covs and weights are updated according to the Gaussian transformation rules of 
+        Bourassa et al. 10.1103/PRXQuantum.2.040315. 
         """
-        if n > M:
-            raise ValueError('Number of clicks cannot exceed click detectors.')
+        if click_number > total_detectors:
+            raise ValueError("Number of clicks can't exceed number of on/off detectors in the fanout.")
+
         if self.num_k != self.num_weights:
             raise ValueError('This measurement is not yet compatible with fast gaussian rep.')
-        #if n ==M:
-            #raise ValueError('Current trace implementation is questionable.')
-        #Make sure that ordering is xpxp first
-        if self.ordering != 'xpxp':
-            self.to_xpxp()
-
-        data_in = self.means, self.covs, self.log_weights
-
-        data_out = project_ppnrd_thermal(data_in, mode, n, M)
-
-        self.update_data(data_out)
-        self.get_norm()
-    
-        if out:
-            print(f'Measuring {n} clicks in mode {mode}.')
-            print(f'Data shape before measurement, {[i.shape for i in data_in[0:2]]}.')
-            print('Probability of measurement = {:.3e}'.format(self.norm))
-            print(f'Data shape after measurement, {[i.shape for i in data_out[0:2]]}')
-            
         
+        data_in = self.means, self.covs, self.log_weights
+        
+        data_out = project_ppnrd_thermal(data_in, mode, click_number, total_detectors)
+        
+        self.update_data(data_out)
+        self.norm, self.log_norm = calculate_norm(self)
        
+    
+    def post_select_homodyne(self, mode : int, phase : float, result : float):
 
-
-    def post_select_homodyne(self, mode, angle, result):
-
-        #First, rotate the mode by -angle
-        S = xxpp_to_xpxp(expand(rotation(-angle), mode, self.num_modes))
-        self.apply_symplectic(S)
+        #First, rotate the measured mode by the opposite angle
+        S = xxpp_to_xpxp(expand(rotation(-phase), mode, self.num_modes))
+        self.apply_gaussian_unitary(S)
 
         data_in = self.means, self.covs, self.log_weights
         
         data_out = project_homodyne(data_in, mode, result, self.num_k)
         self.update_data(data_out)
-        self.get_norm()
+        self.norm, self.log_norm = calculate_norm(self)
         
 
-    def get_wigner_bosonic(self, xvec, pvec, indices = None):
-        """Adapted from strawberryfields.backends.states for BaseBosonicState
+    def get_wigner(self, xvec : np.array, pvec : np.array, indices = None, use_log_weights = True) -> np.ndarray:
+        """Return the Wigner function evaluated on the 2D grid of points given by xvec and pvec. Inspired by strawberryfields.backends.states.
         """
+
+        self.normalise()
 
         if indices is not None: 
             sigmaA, sigmaAB, covs = chop_in_blocks_multi(self.covs, indices)
@@ -526,330 +208,90 @@ class State:
                 raise ValueError('State has multiple modes, please specify indices.')
             means = self.means
             covs = self.covs
-            
-        weights = self.weights
-        norm = self.norm
 
-        
-        
-        X, P = np.meshgrid(xvec, -pvec, sparse=True) #Use -pvec because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
-        
-        wigner = 0
-        for i, weight_i in enumerate(weights):
-        
-            if X.shape == P.shape:
-                arr = np.array([X - means[i, 0], P - means[i, 1]])
-                arr = arr.squeeze()
-                
-            else:
-                # need to specify dtype for creating an ndarray from ragged
-                # sequences
-                arr = np.array([X - means[i, 0], P - means[i, 1]], dtype=object)
-
-            if len(covs) ==1:
-                exp_arg = arr @ np.linalg.inv(covs[0]) @ arr
-                prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[0])))
-            else: 
-                exp_arg = arr @ np.linalg.inv(covs[i]) @ arr
-                prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[i])))
-
-        
-        
-            wigner += (weight_i * prefactor) * np.exp(-0.5 * (exp_arg))
-        return np.real_if_close(wigner/norm)
-
-    def get_wigner_log(self, x, p, indices = None):
-        
-        if indices is not None: 
-            sigmaA, sigmaAB, covs = chop_in_blocks_multi(self.covs, indices)
-            muA, means = chop_in_blocks_vector_multi(self.means, indices)
+        if use_log_weights:
+            W = compute_wigner_function_log(means, covs, self.log_weights, xvec, pvec)
         else:
-            if self.num_modes != 1:
-                raise ValueError('State has multiple modes, please specify indices.')
-            means = self.means
-            covs = self.covs
-    
-        log_weights = self.log_weights
-        #log_norm = self.log_norm
-        norm = self.norm
-        means = self.means
-        covs = self.covs
-        
-        X, P = np.meshgrid(x, -p, sparse=False) #Use -p because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
-        
-        Q = np.array([X,P])
-            
-        arr = Q[np.newaxis,:] - means[:,:, np.newaxis,np.newaxis]
-        
-        if len(covs) ==1:
-           
-            arr=np.transpose(arr, [2,3,0,1])
-            
-            exp_arg = -0.5 * np.einsum("...j,...jk,...k", arr, np.linalg.inv(covs[0])[np.newaxis,np.newaxis,:,:], arr)
-            
-            prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[0])))
-            
-        
-        else:
-            #raise ValueError('Currently not working when num_covs != 1.')
-            arr=np.transpose(arr, [2,3,0,1])
-            
-            exp_arg = -0.5 * np.einsum("...j,...jk,...k", arr, np.linalg.inv(covs)[np.newaxis, np.newaxis,:, : ,:], arr)
-            
-            exp_arg -= np.log(np.sqrt(np.linalg.det(2 * np.pi * covs)))[np.newaxis,np.newaxis,:]
-            prefactor = 1
-            
-            #prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs)))
-            
-        wigner_exp_arg = np.transpose(exp_arg, [2,0,1])
-        
-        logwig = logsumexp(log_weights[:,np.newaxis,np.newaxis] + wigner_exp_arg, axis = 0 )
-        W = prefactor*np.exp(logwig)/norm
-        return W
+            W = compute_wigner_function(means, covs, self.weights, xvec, pvec)
 
-        
-    
-    def get_wigner_old(self, x = None, p = None, indices = None, MP = False):
-        """
-        Obtain the (single mode) Wigner function on a grid of phase space points
-        """
-        if x is None:
-            x = np.linspace(-10,10,200)
-        if p is None:
-            p = x
+        return np.real_if_close(W)
 
-        if indices is not None: 
-            sigmaA, sigmaB, sigmaAB = chop_in_blocks_multi(self.covs, indices)
-            
-            muA, muB = chop_in_blocks_vector_multi(self.means, indices)
-           
-            W = 0
-            if len(sigmaA) == 1:
-                for i, mu in enumerate(muA):
-                    W += self.weights[i] * Gauss(np.squeeze(sigmaA), mu, x, p, MP)/self.norm
-            else:
-                for i, mu in enumerate(muA):
-                    W += self.weights[i] * Gauss(sigmaA[i], mu, x, p, MP)/self.norm
-        else: 
-            if self.num_modes != 1:
-                raise ValueError('State has multiple modes, please specify indices.')
-            W = 0
-            if len(self.covs) == 1:
-                for i, mu in enumerate(self.means):
-                    W += self.weights[i] * Gauss(np.squeeze(self.covs), mu, x, p, MP)/self.norm
-            else:
-                for i, mu in enumerate(self.means):
-                    W += self.weights[i] * Gauss(self.covs[i], mu, x, p, MP)/self.norm
-        
-        return W
-
-    def multimode_copy(self, n):
-        """Duplicate a single mode state onto n modes.
+    def tensor_product(self, num_copies):
+        """Tensor product itself num times
         """
-        
         # Check number of modes in state
         if self.num_modes != 1:
-            raise ValueError('This is a multimode state. Can only copy make copies of single mode states.')
+            raise ValueError('This is a multimode state. So far, we can only copy single mode states.')
 
         if self.num_k != self.num_weights:
-            raise ValueError('Doesnt handle fast rep correctly.')
-            
-        means, cov, log_weights = self.means, self.covs, self.log_weights
-        print('input data shape', means.shape, cov.shape, log_weights.shape)
+            raise Warning('Check that it handles the fast rep correctly (Not sure that it does).')
         
-        if self.num_covs == 1:
-            new_cov = np.array([block_diag(*np.repeat(cov,n,axis = 0))])
-    
-        #new_weights = np.prod(np.array(list(it.product(weights.tolist(), repeat = n, ))), axis = 1)
+        new_means, new_covs, new_log_weights = compute_nfold_tensor_product(self.means, self.covs, self.log_weights, num_copies)
+        self.update_data([new_means, new_covs, new_log_weights, len(new_log_weights)])
 
-        new_weights = np.sum(np.array(list(it.product(log_weights.tolist(), repeat = n, ))), axis = 1)
-        
-        new_means = np.reshape(np.array(list(it.product(means, repeat = n))), (len(log_weights)**n, n*2) )
-        #new_cov = np.array([block_diag(*list(it.product(np.squeeze(cov), repeat = n)))])
-    
-        print('new data shape', new_means.shape, new_cov.shape, new_weights.shape)
-        
-        data_new = new_means, new_cov, new_weights, len(new_weights), np.sum(np.exp(new_weights))
-        
-        self.update_data(data_new)
 
     def add_state(self, state):
         """Tensor product of a state with a user-specified state in sum of Gaussian representation
         """
-        #if self.num_k != self.num_weights and state.num_k != state.num_weights: 
-            #raise ValueError('Doesnt handle the fast rep correctly. Need to consider the cross terms just like in the overlap functions.')
+
+        data1 = self.means, self.covs, self.log_weights, self.num_k
+        data2 = state.means, state.covs, state.log_weights, state.num_k
+
+        data_out = compute_tensor_product(data1, data2)
+        self.update_data(data_out)
         
-        means1, cov1, log_weights1 = self.means, self.covs, self.log_weights
-        means2, cov2, log_weights2 = state.means, state.covs, state.log_weights
-    
-        k1 = self.num_k
-        k2 = state.num_k
-        
-        #In coherent picture, covariances are the same for every weight
-        if len(cov1) != 1 or len(cov2) != 1:
-            new_cov = np.array([block_diag(*i) for i in list(it.product(cov1,cov2))])
-        else:
-            
-            new_cov = np.array([block_diag(*list([np.squeeze(cov1),np.squeeze(cov2)]))])
-
-        #Deal with different fast rep scenarios separately for correct ordering
-    
-        if k1 != self.num_weights and k2 != state.num_weights:  #Both are in fast rep
-            
-           
-            nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[0:k2]))),axis=1) 
-            nw2 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[k2::]))),axis=1) 
-            nw3 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[0:k2]))),axis=1) 
-            nw4 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::]))),axis=1) - np.log(2) #To counteract +2*np.log(2)
-            nw5 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::].conjugate()))),axis=1) - np.log(2)
-    
-            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[0:k2]))])
-            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[k2::]))])
-            nm3 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[0:k2]))])
-            nm4 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::]))])
-            nm5 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::].conjugate()))])
-    
-            new_weights = np.concatenate((nw1,nw2,nw3,nw4,nw5))
-            new_means = np.concatenate((nm1,nm2,nm3,nm4,nm5))
-            
-            num = k1*k2
-    
-        elif k1 != self.num_weights: #self is in fast rep
-
-            nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2))),axis=1) 
-            nw2 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2))),axis=1)
-
-            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2))])
-            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2))])
-            
-            new_weights = np.concatenate((nw1,nw2))
-            new_means = np.concatenate((nm1,nm2))
-            
-            num = k1
-
-        elif k2 != state.num_weights: #state is in fast rep
-            nw1 = np.sum(np.array(list(it.product(log_weights1, log_weights2[0:k2]))),axis=1) 
-            nw2 = np.sum(np.array(list(it.product(log_weights1, log_weights2[k2::]))),axis=1)
-
-            nm1 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[0:k2]))])
-            nm2 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[k2::]))])
-            
-            new_weights = np.concatenate((nw1,nw2))
-            new_means = np.concatenate((nm1,nm2))
-            
-            num = k2
-            
-        else: #Neither are in fast rep
-            
-            new_weights = np.sum(np.array(list(it.product(log_weights1, log_weights2))),axis=1) 
-            #Hack to fix list of list problem
-            new_means = list(it.product(means1,means2))
-            new_means = np.array([np.concatenate(i) for i in new_means])
-  
-            num = len(new_weights)
-  
-           
-        data_new = new_means, new_cov, new_weights, num
-            
-        self.update_data(data_new)
-        return self
-
-
     def reduce_equal_means(self):
-        r"""Merge peaks with equal means
+        """Merge Gaussians with equal means into a single Gaussian
         """
-        fast = False
+        if self.num_covs != 1:
+            raise ValueError("Cannot merge means if Gaussians have different covariance matrices.")
+        
+        sort = False
         if self.num_k != self.num_weights:
-            fast = True
+            sort = True
             
-            
-        means, cov, log_weights = self.means, self.covs, self.log_weights
-        
-        unique_means, idx, idx_inv  = np.unique(np.round(means,10),axis = 0, return_index = True, return_inverse=True)
-        unique_means = means[idx] 
-    
-        unique_log_weights = np.zeros(len(idx), dtype='complex')
-        
-        #Compute the new weights with a high performant function doing log(sum(exp(a)))
-        for i in range(len(idx)):
-            lw = log_weights[idx_inv == i]
-            if len(lw) != 1:
-                unique_log_weights[i] = logsumexp(lw)
-            else:
-                unique_log_weights[i] = lw
-            
-        #Find number of real Gaussians, and sort them as [Re G, Im G]
-        if fast: 
-            
-            reals = unique_means.imag == 0
-            reals = reals[:,0]*reals[:,1]
-            
-            #Sort unique means, weights where real means go first
-            means_re = unique_means[reals==True]
-            weights_re = unique_log_weights[reals==True]
-            means_imag = unique_means[reals==False]
-            weights_imag = unique_log_weights[reals==False]
-    
-            unique_means = np.vstack((means_re, means_imag))
-            unique_log_weights = np.hstack((weights_re, weights_imag))
-            num_k = np.sum(reals == True)
-       
-        if fast:
-            reduced_data = unique_means, cov, unique_log_weights, num_k
-        else:
-            reduced_data = unique_means, cov, unique_log_weights, len(unique_log_weights)
-   
-        #Update the data tuple
-        self.update_data(reduced_data)
+        reduced_means, reduced_log_weights, num_k = find_unique_means_and_merge_weights(self.means, self.log_weights, sort)
+        self.update_data([reduced_means, self.covs, reduced_log_weights, num_k])
         
         
-    def reduce_pure(self, nmax:int, infid = 1e-6):
-        """Map the state to O((nmax+1)**2) Gaussians
-        Args:
-            nmax : max photon number
-        Returns:
-            updates the state data
-
+    def reduce_pure(self, max_photons : int, infid = 1e-6):
+        """Map the state to a superposition of (max_photons+1) coherent states.
         """
+        if self.num_modes != 1:
+            raise ValueError("Only single-mode states can currently be reduced.")
+        if self.num_covs != 1:
+            raise ValueError("The state has several covariance matrices.")
         
-        #invert the symplectic
-        
+        #Perform Wiliamson decomposition on the covariance matrix and undo the symplectic transform.
         D, S = williamson(self.covs[0])
-        if np.round(np.sum(np.diag(D)),1) != 2.0:
-            raise ValueError('State not pure')
+        if np.trace(D) != self.hbar:
+            raise ValueError('State is not pure.')
         
         #Remove any squeezing
-        self.apply_symplectic(np.linalg.inv(S))
+        self.apply_gaussian_unitary(np.linalg.inv(S))
 
         data = self.means, self.covs, self.log_weights, self.num_k
         
-        eps = eps_superpos_coherent(nmax, infid)
-        new_data = reduce_log_pure(nmax, eps, data)
+        radius = eps_superpos_coherent(max_photons, infid) #amplitude of coherent state for target fidelity
+        new_data = reduce_log_pure(max_photons, radius, data)
 
         self.update_data(new_data)
-        self.get_norm()
+        self.norm, self.log_norm = calculate_norm()
         self.normalise()
     
         #Re-apply the squeezing
-        self.apply_symplectic(S)
+        self.apply_gaussian_unitary(S)
 
 
     def reduce_mixed(self, sd = 6, infid = 1e-6):
-        """Map the state to O((nmax+1)**2) Gaussians
-        Args:
-            nmax : max photon number
-        Returns:
-            updates the state data
-    
+        """Map the state to a linear combination of ~((max_photons+1)^2) Gaussians
         """
-        
-        #invert the symplectic
-        
+        #Perform Wiliamson decomposition on the covariance matrix and undo the symplectic transform.
         D, S = williamson(self.covs[0])
         nu = D - np.eye(2)
         
         #Remove any squeezing
-        self.apply_symplectic(np.linalg.inv(S))
+        self.apply_gaussian_unitary(np.linalg.inv(S))
         
         #Remove thermal terms from cov
         data = self.means, self.covs - nu, self.log_weights, self.num_k
@@ -870,18 +312,15 @@ class State:
             new_data = reduce_log_full(nmax, eps, data)
 
         self.update_data(new_data)
-        self.get_norm()
+        self.norm, self.log_norm = calculate_norm()
         self.normalise()
         
-    
-        #Re-apply the thermal noise and the squeezing
+        #Re-apply the random Gaussian displacement and the squeezing
         self.covs += nu
-        self.apply_symplectic(S)
-        
-
+        self.apply_gaussian_unitary(S)
 
     def sample_dyne(self, modes, shots=1, covmat = [], method = 'normal'):
-        r"""Performs general-dyne measurements on a set of modes. 
+        """Performs general-dyne measurements on a set of modes. 
         """
             
         means_quad, covs_quad, quad_ind = select_quads(self, modes, covmat)
@@ -932,7 +371,7 @@ class State:
             
     
     def sample_dyne_gaussian(self, modes, shots = 1, covmat = [], factor = 0):
-        r"""Performs general-dyne measurements on a set of modes using a Gaussian 
+        """Performs general-dyne measurements on a set of modes using a Gaussian 
         upper bounding function based on the first and second moments of the state. 
         
         """
@@ -968,6 +407,91 @@ class State:
                     vals[i] = sample
     
         return vals, np.array(reject_vals)
+
+
+def compute_nfold_tensor_product(means, covs, log_weights, num_copies):
+    """Comptue the new means, covs and log_weights when the tensor product of the same state is taken num times. 
+    """
+    if np.shape(covs)[0]==1:
+        new_covs = np.array([block_diag(*np.repeat(covs, num_copies, axis = 0))])
+
+    new_log_weights = np.sum(np.array(list(it.product(log_weights.tolist(), repeat = num_copies))), axis = 1)
     
-    
-    
+    new_means = np.reshape(np.array(list(it.product(means, repeat = num_copies))), (len(log_weights)**num_copies, num_copies*2) )
+
+    return new_means, new_covs, new_log_weights
+
+def compute_tensor_product(data1, data2):
+    """Compute the means, covs and log_weights of the tensor product of two states. 
+    """
+    #unpack data
+    means1, covs1, log_weights1, k1 = data1
+    means2, covs2, log_weights2, k2 = data2
+
+    num_weights1 = len(log_weights1)
+    num_weights2 = len(log_weights2)
+
+    #In coherent picture, covariances are the same for every weight
+    if len(covs1) != 1 or len(covs2) != 1:
+        new_covs = np.array([block_diag(*i) for i in list(it.product(covs1,covs2))])
+    else:
+        
+        new_covs = np.array([block_diag(*list([np.squeeze(covs1),np.squeeze(covs2)]))])
+
+    #Deal with different fast rep scenarios separately to obtain the correct ordering
+
+    if k1 != num_weights1 and k2 != num_weights2:  #Both are in fast rep
+        
+        nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[0:k2]))),axis=1) 
+        nw2 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2[k2::]))),axis=1) 
+        nw3 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[0:k2]))),axis=1) 
+        nw4 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::]))),axis=1) - np.log(2) #To counteract +2*np.log(2)
+        nw5 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2[k2::].conjugate()))),axis=1) - np.log(2)
+
+        nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[0:k2]))])
+        nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2[k2::]))])
+        nm3 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[0:k2]))])
+        nm4 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::]))])
+        nm5 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2[k2::].conjugate()))])
+
+        new_weights = np.concatenate((nw1,nw2,nw3,nw4,nw5))
+        new_means = np.concatenate((nm1,nm2,nm3,nm4,nm5))
+        
+        num = k1*k2
+
+    elif k1 != num_weights1: #state1 is in fast rep
+
+        nw1 = np.sum(np.array(list(it.product(log_weights1[0:k1], log_weights2))),axis=1) 
+        nw2 = np.sum(np.array(list(it.product(log_weights1[k1::], log_weights2))),axis=1)
+
+        nm1 = np.array([np.concatenate(i) for i in list(it.product(means1[0:k1],means2))])
+        nm2 = np.array([np.concatenate(i) for i in list(it.product(means1[k1::],means2))])
+        
+        new_weights = np.concatenate((nw1,nw2))
+        new_means = np.concatenate((nm1,nm2))
+        
+        num = k1
+
+    elif k2 != num_weights2: #state2 is in fast rep
+        nw1 = np.sum(np.array(list(it.product(log_weights1, log_weights2[0:k2]))),axis=1) 
+        nw2 = np.sum(np.array(list(it.product(log_weights1, log_weights2[k2::]))),axis=1)
+
+        nm1 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[0:k2]))])
+        nm2 = np.array([np.concatenate(i) for i in list(it.product(means1,means2[k2::]))])
+        
+        new_weights = np.concatenate((nw1,nw2))
+        new_means = np.concatenate((nm1,nm2))
+        
+        num = k2
+        
+    else: #Neither are in fast rep
+        
+        new_weights = np.sum(np.array(list(it.product(log_weights1, log_weights2))),axis=1) 
+        #Hack to fix list of list problem
+        new_means = list(it.product(means1,means2))
+        new_means = np.array([np.concatenate(i) for i in new_means])
+
+        num = len(new_weights)
+
+        
+    return new_means, new_covs, new_weights, num

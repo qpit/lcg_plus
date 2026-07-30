@@ -79,8 +79,8 @@ def build_interferometer(params : dict, nmodes : int, out = False, setting = 'no
                 print('Rgate[{:.3f}] on mode {}'.format(phis[i][0], i) )
 
     #Apply the symplectic to the state
-    #state.apply_symplectic(xxpp_to_xpxp(Stot))
-    state.apply_symplectic(Stot)
+    #state.apply_gaussian_unitary(xxpp_to_xpxp(Stot))
+    state.apply_gassian_unitary(Stot)
                 
 
     #Apply displacements at the end of the circuit if any
@@ -110,10 +110,10 @@ def bosonicplus_circuit(nmodes, r, eta, n, fast = True):
 
     for i in range(nmodes):
         
-        state.apply_symplectic_fast(xxpp_to_xpxp(squeezing(r, i*np.pi)),[i])
+        state.apply_gaussian_unitary(xxpp_to_xpxp(squeezing(r, i*np.pi)),[i])
     for i in range(nmodes):
         if i < nmodes-1:
-            state.apply_symplectic_fast(bs, [i,i+1])
+            state.apply_gaussian_unitary(bs, [i,i+1])
     if eta != 1:
         state.apply_loss(np.repeat(eta,nmodes),np.zeros(nmodes))
     
@@ -211,7 +211,7 @@ def build_interferometer_gradients(params : dict, nmodes : int, out = False, set
 
     Stot = multiply_matrices(Slist[::-1]) #Reverse the order and multiply matrices together
     
-    state.apply_symplectic(Stot)
+    state.apply_gaussian_unitary(Stot)
                 
     #Apply displacements at the end of the circuit if any
     alphas = params['alphas']

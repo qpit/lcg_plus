@@ -14,25 +14,59 @@
 
 
 import numpy as np
-from scipy.special import factorial, genlaguerre
+from scipy.special import logsumexp
 from scipy.stats import multivariate_normal
-from numba import jit, njit
+from numba import njit
 hbar = 2
 
-def wig_mn(m, n, x, p):
-    """Wigner function of |m><n| state
-    """
-    if n > m:
-        m, n = n, m
-        p = -p
+def compute_wigner_function(means, covs, weights, norm, xvec, pvec):
+    X, P = np.meshgrid(xvec, -pvec, sparse=True) #Use -pvec because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
+            
+    wigner = 0
+    for i, weight in enumerate(weights):
     
-    x /= np.sqrt(hbar)
-    p /= np.sqrt(hbar)
-    
-    return (-1)**n * (x-p*1j)**(m-n) * 1/(hbar * np.pi) * np.exp(-x*x - p*p) * \
-            np.sqrt(2**(m-n) * factorial(n) / factorial(m)) * \
-            genlaguerre(n, m-n)(2*x*x + 2*p*p)
+        if X.shape == P.shape:
+            arr = np.array([X - means[i, 0], P - means[i, 1]])
+            arr = arr.squeeze()
+            
+        else:
+            # need to specify dtype for creating an ndarray from ragged
+            # sequences
+            arr = np.array([X - means[i, 0], P - means[i, 1]], dtype=object)
 
+        if len(covs) ==1:
+            exp_arg = arr @ np.linalg.inv(covs[0]) @ arr
+            prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[0])))
+        else: 
+            exp_arg = arr @ np.linalg.inv(covs[i]) @ arr
+            prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[i])))
+
+        wigner += (weight * prefactor) * np.exp(-0.5 * (exp_arg))
+    return wigner
+
+def compute_wigner_function_log(means, covs, log_weights, norm, xvec, pvec):
+    X, P = np.meshgrid(xvec, -pvec, sparse=False) #Use -p because of matplotlib.imshow y axis convention. Can cause issues if comparing with analytical Wigner functions..
+            
+    Q = np.array([X,P])
+        
+    arr = Q[np.newaxis,:] - means[:,:, np.newaxis,np.newaxis]
+    arr=np.transpose(arr, [2,3,0,1])
+    
+    if len(covs) == 1:
+        
+        exp_arg = -0.5 * np.einsum("...j,...jk,...k", arr, np.linalg.inv(covs[0])[np.newaxis,np.newaxis,:,:], arr)
+        prefactor = 1 / (np.sqrt(np.linalg.det(2 * np.pi * covs[0])))
+    
+    else:
+
+        exp_arg = -0.5 * np.einsum("...j,...jk,...k", arr, np.linalg.inv(covs)[np.newaxis, np.newaxis,:, : ,:], arr)
+        exp_arg -= np.log(np.sqrt(np.linalg.det(2 * np.pi * covs)))[np.newaxis,np.newaxis,:] #the prefactor is handled here
+        prefactor = 1
+    
+    wigner_exp_arg = np.transpose(exp_arg, [2,0,1])
+    logwig = logsumexp(log_weights[:,np.newaxis,np.newaxis] + wigner_exp_arg, axis = 0 )
+
+    return prefactor*np.exp(logwig)
 
 @njit 
 def make_grid(xvec,pvec):

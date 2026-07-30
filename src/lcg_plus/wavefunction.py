@@ -18,9 +18,9 @@ from lcg_plus.interferometers.symplectics import rotation
 from lcg_plus.interferometers.ops import apply_symplectic
 from lcg_plus.states.from_sf import prepare_cat_bosonic, prepare_gkp_bosonic
 from lcg_plus.states.coherent import outer_coherent, eps_fock_coherent, eps_superpos_coherent
-from lcg_plus.states.wigner import get_wigner_coherent
+from lcg_plus.properties.wigner import get_wigner_coherent
 from strawberryfields.backends.states import BaseBosonicState
-from lcg_plus.plotting import plot_wigner_marginals
+from lcg_plus.visualisation.plotting import plot_wigner_marginals
 import matplotlib.pyplot as plt
 from scipy.special import factorial
 import strawberryfields as sf

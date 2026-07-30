@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import numpy as np
-from lcg_plus.charfun import char_fun, char_fun_gradients
+from lcg_plus.properties.charfun import char_fun, char_fun_gradients
 
 def get_gkp_stabilizer_displacement(lattice):
 

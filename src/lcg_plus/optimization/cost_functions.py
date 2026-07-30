@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-from lcg_plus.operations.circuit_parameters import params_to_dict
-from lcg_plus.operations.gbs import build_interferometer, build_interferometer_gradients
+from lcg_plus.circuits.circuit_parameters import params_to_dict
+from lcg_plus.circuits.gbs import build_interferometer, build_interferometer_gradients
 import numpy as np
-from lcg_plus.effective_squeezing import effective_squeezing, effective_squeezing_gradients, effective_squeezing_squared_gradients
-from lcg_plus.gkp_squeezing import Q_expval, Q_expval_gradients
+from lcg_plus.properties.effective_squeezing import effective_squeezing, effective_squeezing_gradients, effective_squeezing_squared_gradients
+from lcg_plus.properties.gkp_squeezing import Q_expval, Q_expval_gradients
 
 def state_prep_GBS(params, 
                    nmodes, 

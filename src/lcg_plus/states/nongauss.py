@@ -17,7 +17,7 @@ import numpy as np
 from math import factorial
 from lcg_plus.base import State
 from .coherent import gen_fock_coherent, gen_sqz_cat_coherent, gen_fock_coherent_old
-from lcg_plus.gkp_squeezing import gen_gkp_coherent
+from lcg_plus.properties.gkp_squeezing import gen_gkp_coherent
 from thewalrus.symplectic import xxpp_to_xpxp, squeezing, beam_splitter
 
 

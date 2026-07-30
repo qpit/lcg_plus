@@ -14,10 +14,10 @@
 
 
 from scipy.optimize import basinhopping, minimize
-from lcg_plus.operations.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
+from lcg_plus.circuits.circuit_parameters import gen_interferometer_params, params_to_1D_array, unpack_params, params_to_dict
 import numpy as np
-from lcg_plus.conversions import dB_to_r, r_to_dB
-from lcg_plus.cost_functions import symm_effective_squeezing
+from lcg_plus.helper.conversions import dB_to_r, r_to_dB
+from lcg_plus.optimization.cost_functions import symm_effective_squeezing
 
 class GBS_optimizer:
 

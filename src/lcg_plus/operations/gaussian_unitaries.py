@@ -17,7 +17,7 @@ import numpy as np
 from scipy.sparse import issparse
 from functools import reduce
 from thewalrus.symplectic import xxpp_to_xpxp
-from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from lcg_plus.helper.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 
 hbar = 2
 

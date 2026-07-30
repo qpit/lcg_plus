@@ -17,17 +17,17 @@ import numpy as np
 from thewalrus.symplectic import xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
 from lcg_plus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
-from lcg_plus.operations.symplectic import apply_symplectic_on_subsystem, apply_symplectic_full, is_symplectic
+from lcg_plus.operations.gaussian_unitaries import apply_symplectic_on_subsystem, apply_symplectic_full, is_symplectic
 from lcg_plus.operations.channels import apply_gaussian_channel_full
 from lcg_plus.properties.normalisation import calculate_norm
-from lcg_plus.states.wigner import compute_wigner_function, compute_wigner_function_log
+from lcg_plus.properties.wigner import compute_wigner_function, compute_wigner_function_log
 from lcg_plus.states.coherent import eps_superpos_coherent
 from lcg_plus.operations.reduce import reduce_log, reduce_log_full, reduce_log_pure, find_unique_means_and_merge_weights
 
 
-from lcg_plus.sampling import *
+from lcg_plus.operations.sampling import *
 
-from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from lcg_plus.helper.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
 

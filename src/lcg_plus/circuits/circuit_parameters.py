@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import numpy as np
-from lcg_plus.conversions import dB_to_r
+from lcg_plus.helper.conversions import dB_to_r
 
 def gen_Clements_indices(nmodes):
     """ Get a list of the beamsplitter indices of a Clements interferometer.

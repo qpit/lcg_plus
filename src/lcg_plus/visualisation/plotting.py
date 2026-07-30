@@ -21,7 +21,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from mpmath import mp, fp
 hbar = 2
-from lcg_plus.sampling import *
+from lcg_plus.operations.sampling import *
 
 
 def plot_wig(W, x, p, colorbar = True, xlabel = None, ylabel = None, gridx = None, gridp= None, ax = None, hbar = 2, contourf = False, scale = None):

@@ -15,7 +15,7 @@
 import numpy as np
 from scipy.special import comb
 from lcg_plus.states.coherent import gen_fock_coherent, gen_fock_log
-from lcg_plus.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi, chop_in_blocks_multi_v2, chop_in_blocks_vector_multi_v2
+from lcg_plus.helper.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi, chop_in_blocks_multi_v2, chop_in_blocks_vector_multi_v2
 
 
 # PNRD MEASUREMENT

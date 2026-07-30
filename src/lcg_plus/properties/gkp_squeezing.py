@@ -16,7 +16,7 @@ import numpy as np
 from scipy.special import factorial
 from lcg_plus.states.fockbasis import density_mn
 from lcg_plus.states.coherent import outer_coherent, gen_fock_superpos_coherent
-from lcg_plus.charfun import char_fun, char_fun_gradients
+from lcg_plus.properties.charfun import char_fun, char_fun_gradients
 
 
 def get_gkp_squeezing_displacements(lattice, N=1):

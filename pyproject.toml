@@ -16,6 +16,7 @@ dependencies = [
         "matplotlib",
         "ipykernel",
         "seaborn>=0.13.2",
+        "pytest>=9.0.2",
 ]
 
 [project.urls]

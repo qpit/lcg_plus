@@ -17,7 +17,7 @@ import numpy as np
 from thewalrus.symplectic import xxpp_to_xpxp, expand, rotation
 from thewalrus.decompositions import williamson
 from lcg_plus.operations.measurements import project_fock_coherent, project_ppnrd_thermal, project_homodyne, project_fock_thermal, project_fock_coherent_gradients
-from lcg_plus.operations.gaussian_unitaries import apply_symplectic_on_subsystem, apply_symplectic_full, is_symplectic
+from lcg_plus.operations.gaussian_unitaries import apply_symplectic_on_subsystem, apply_symplectic_full
 from lcg_plus.operations.channels import apply_gaussian_channel_full
 from lcg_plus.properties.normalisation import calculate_norm
 from lcg_plus.properties.wigner import compute_wigner_function, compute_wigner_function_log
@@ -28,6 +28,7 @@ from lcg_plus.operations.reduce import reduce_log, reduce_log_full, reduce_log_p
 from lcg_plus.operations.sampling import *
 
 from lcg_plus.helper.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_multi
+from lcg_plus.helper.matrices import is_symplectic
 from scipy.linalg import block_diag
 from scipy.special import logsumexp
 
@@ -38,7 +39,7 @@ hbar = 2
 
 class State:
     """Simulate a bosonic state by representing its Wigner function as a linear combination of multivariate Gaussians https://arxiv.org/abs/2103.05530
-    by keeping track of the (xpxp-ordered) means, (xpxp-ordered) covariance matrices, and coefficients of each Gaussian.
+    by keeping track of the (xpxp-ordered) means, (xpxp-ordered) covariance matrices, and coefficients in front of each Gaussian.
     """
     def __init__(self, num_modes = 1, hbar = 2):
         """Initialise single-mode vacuum by default.
@@ -57,16 +58,14 @@ class State:
 
 
     def update_data(self, new_data : tuple):
-        """Insert a custom data tuple, new_data = [means, covs, log_weights, k]. 
+        """Insert a custom data tuple, new_data = [means, covs, log_weights, num_k]. 
         This overrides the existing state data completely.
         """
         if len(new_data) != 4:
             raise ValueError('new_data must be [means, covs, log_weights, num_k] tuple.')
             
         self.means, self.covs, self.log_weights, self.num_k = new_data
-
         self.num_weights = len(self.log_weights)
-        
         self.num_modes = int(np.shape(self.means)[-1]/2)
         
         if len(self.covs.shape) != 3: 
@@ -97,7 +96,7 @@ class State:
         self.weights /= norm
 
     def apply_gaussian_unitary(self, symp_mat: np.ndarray, modes = None): 
-        """Apply a Gaussian unitary with symplectic matrix (in xpxp ordering) to the covs and means.
+        """Apply a Gaussian unitary to modes with symplectic matrix (in xpxp ordering) to the covs and means.
         """
         if not is_symplectic(symp_mat):
             raise Warning("symp_mat is not symplectic. Check its ordering.")
@@ -106,32 +105,30 @@ class State:
         else:
             self.means, self.covs = apply_symplectic_full(self.means, self.covs, symp_mat) 
         
-        
     def apply_displacement(self, d: np.ndarray):
         """Shift the means by d (in xpxp ordering)
+        TO DO: add modes arg, i.e. displacements on some of the modes
         """
-        
-        if d.shape != self.means.shape[0,:]:
+        if d.size != self.means[0].size:
             raise ValueError('d must be 2 x nmodes.')
         self.means += d
 
     def apply_gaussian_channel(self, X, Y):
         """Apply an (X,Y) Gaussian channel to the covs and means
+        TO DO: add modes arg i.e. gaussian channel on some of the modes
         """
         self.means, self.covs = apply_gaussian_channel_full(self.means, self.covs, X, Y)
         #Update the gradients if any
         if hasattr(self, "means_partial"):
             self.means_partial, self.covs_partial = apply_gaussian_channel_full(self.means_partial,self.covs_partial, X , Y)
 
-
     def post_select_fock(self, mode : int, photon_number : int, method_kwargs = {'method' : 'coherent', 'infidelity' : 1e-4, 'gradients' : False}):
-        """Post select on a photon number in the given mode. The new state has one fewer mode, so be careful with indexing.
+        """Post select on a photon number in the given mode. The measured mode is traced out.
         """
         data_in = self.means, self.covs, self.log_weights
 
         if method_kwargs['gradients']:
             data_partial = self.means_partial, self.covs_partial, self.log_weights_partial
-
 
         if method_kwargs['method'] == 'coherent':
             infid = method_kwargs['infidelity']
@@ -182,6 +179,9 @@ class State:
        
     
     def post_select_homodyne(self, mode : int, phase : float, result : float):
+        """
+        Post select mode with a homodyne detector with local oscillator phase.
+        """
 
         #First, rotate the measured mode by the opposite angle
         S = xxpp_to_xpxp(expand(rotation(-phase), mode, self.num_modes))
@@ -192,6 +192,11 @@ class State:
         data_out = project_homodyne(data_in, mode, result, self.num_k)
         self.update_data(data_out)
         self.norm, self.log_norm = calculate_norm(self)
+
+
+    def post_select_generaldyne(self, modes : list, povm_cov : np.ndarray, povm_mean : np.ndarray):
+        """
+        Post-select modes """
         
 
     def get_wigner(self, xvec : np.array, pvec : np.array, indices = None, use_log_weights = True) -> np.ndarray:

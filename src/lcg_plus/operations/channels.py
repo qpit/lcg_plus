@@ -13,8 +13,26 @@
 # limitations under the License.
 
 import numpy as np
+from lcg_plus.helper.matrices import has_even_dimensions, symplectic_form
 
-def loss_channel_matrices(etas : np.array, nbars = np.array, hbar = 2):
+def is_valid_gaussian_channel(X, Y, hbar = 2, atol = 1e-08):
+    """Check if (X,Y) is a valid Gaussian quantum channel."""
+    #Check dimensions
+    has_even_dimensions(X)
+    has_even_dimensions(Y)
+    m,n = X.shape
+    k,l = Y.shape
+    if m != k: 
+        return False
+    #Check for violation of uncertainty relations
+    num_modes = m // 2
+    Omega = symplectic_form(num_modes)
+    vals = np.linalg.eigvalsh(Y - 0.5j * hbar * X @ Omega @ X.T + 0.5j * hbar * Omega)
+    vals[np.abs(vals)< atol] = 0.0
+    if np.all(vals >=0):
+        return True
+
+def loss_channel_matrices(etas : np.ndarray, nbars : np.ndarray, hbar = 2):
     """Get X and Y matrices (xpxp ordering) for the multimode loss channel with transmissivity eta and nbar in each mode.
 
     Args:
@@ -54,9 +72,9 @@ def apply_gaussian_channel_full(means, covs, X : np.ndarray, Y : np.ndarray):
     """
     means = np.einsum("...jk,...k", X, means)
 
-    if np.shape.covs[0] == 1:
+    print(covs.shape[0])
+    if covs.shape[0] == 1:
         covs = X @ covs @ X.T + Y
-        covs += Y
     else:
         covs = np.einsum("...jk,...kl,...lm", X, covs, X.T) + Y[np.newaxis, :]
     return means, covs

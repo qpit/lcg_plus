@@ -21,22 +21,7 @@ from lcg_plus.helper.from_sf import chop_in_blocks_multi, chop_in_blocks_vector_
 
 hbar = 2
 
-def symplectic_form(num_modes):
-    Omega = np.array([[0,1],[-1,0]]) #Single mode 
-    return np.kron(np.eye(num_modes),Omega)
 
-def is_symplectic(mat, rtol=1e-05, atol=1e-08):
-    """Check if mat is symplectic"""
-    m, n = mat.shape
-
-    if n != m:
-        return False
-    if n % 2 != 0:
-        return False
-    
-    num_modes = n // 2
-    Omega = symplectic_form(num_modes)
-    return np.allclose(Omega, mat @ Omega @ mat, rtol=rtol, atol=atol)
 
 def apply_symplectic_on_subsystem(means, covs, num_modes, num_weights, symp_mat, modes_subsystem):
     """Apply a symplectic transform (in xpxp ordering) on subsystem elements of the covariance matrices and displacement vectors,
